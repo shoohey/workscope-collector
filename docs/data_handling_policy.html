@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WorkScope Collector データ取扱い方針</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #f5f7fa;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #1a1a2e;
+    line-height: 1.7;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    padding: 14mm 16mm;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid #1e3a5f;
+    padding-bottom: 4mm;
+    margin-bottom: 6mm;
+  }
+  .header .label {
+    font-size: 9pt;
+    color: #1e3a5f;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+  }
+  h1 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 19pt;
+    color: #1e3a5f;
+    line-height: 1.3;
+  }
+  .meta {
+    font-size: 9pt;
+    color: #4a5568;
+    text-align: right;
+  }
+
+  h2 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 11.5pt;
+    color: #1e3a5f;
+    margin: 5mm 0 2mm;
+    padding-left: 6px;
+    border-left: 4px solid #1e3a5f;
+  }
+  p { font-size: 9.5pt; line-height: 1.7; }
+  ul, ol { margin-left: 5mm; }
+  li { font-size: 9pt; line-height: 1.6; margin-bottom: 0.8mm; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4mm;
+    margin: 3mm 0;
+  }
+  .box {
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4mm 5mm;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .box h3 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    color: #1e3a5f;
+    font-size: 10.5pt;
+    margin-bottom: 2mm;
+  }
+  .box ul { margin-left: 4mm; }
+  .box li { font-size: 8.5pt; line-height: 1.6; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2mm 0 4mm;
+    font-size: 8.5pt;
+  }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 2mm 3mm;
+    text-align: left;
+    line-height: 1.5;
+  }
+  th {
+    background: #1e3a5f;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 8.5pt;
+    letter-spacing: 0.04em;
+  }
+  tbody tr:nth-child(even) { background: #f5f7fa; }
+  td.center { text-align: center; }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .badge-collect { background: #fff4e6; color: #975a16; border: 1px solid #f0c896; }
+  .badge-not-collect { background: #e7f3ec; color: #276749; border: 1px solid #aed4bb; }
+
+  .footer {
+    border-top: 1px solid #e2e8f0;
+    margin-top: 5mm;
+    padding-top: 3mm;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #4a5568;
+  }
+  .placeholder { color: #c53030; font-weight: 700; }
+
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #ffffff; }
+    .page { box-shadow: none; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div>
+      <div class="label">DATA HANDLING POLICY</div>
+      <h1>WorkScope Collector<br>データ取扱い方針</h1>
+    </div>
+    <div class="meta">
+      Version 1.0 / 2026年5月<br>
+      対象: <span class="placeholder">[薬局名]</span> 様
+    </div>
+  </div>
+
+  <p>
+    本書は、業務記録ツール「WorkScope Collector」が薬局業務PC上で取り扱うデータの収集範囲、マスキング処理、保管期間、削除手順、開示請求窓口および法的根拠を1ページで明示するものです。本書の内容は同意書および運用手順書と整合しています。
+  </p>
+
+  <h2>1. 収集データ一覧</h2>
+  <table>
+    <thead>
+      <tr><th style="width: 25%;">区分</th><th style="width: 35%;">項目</th><th style="width: 40%;">処理</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-collect">収集</span></td>
+        <td>アクティブウィンドウのスクリーンショット</td>
+        <td>OCRで個人情報を検出 → 黒塗り後のみ保存。原本は即時破棄</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-collect">収集</span></td>
+        <td>ウィンドウタイトル</td>
+        <td>マスキング辞書で個人情報文字列を黒塗り後に保存</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-collect">収集</span></td>
+        <td>使用アプリ名・操作時刻・滞在時間</td>
+        <td>JSONLログとしてローカル保存</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-not-collect">非収集</span></td>
+        <td>キーボード入力内容</td>
+        <td>キーロガー機能は実装していません</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-not-collect">非収集</span></td>
+        <td>クリップボード・マイク・カメラ</td>
+        <td>OS API へのアクセス権を要求しません</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-not-collect">非収集</span></td>
+        <td>パスワード入力画面</td>
+        <td>入力フィールド検出時にスクリーンショットを破棄</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. マスキング対象一覧</h2>
+  <div class="grid-2">
+    <div class="box">
+      <h3>テキスト系</h3>
+      <ul>
+        <li>患者氏名（漢字・ひらがな・カタカナ）</li>
+        <li>保険証番号・記号番号・被保険者番号</li>
+        <li>生年月日（西暦・和暦・複数形式）</li>
+        <li>電話番号（固定・携帯・FAX）</li>
+        <li>住所・郵便番号</li>
+        <li>マイナンバー・処方箋ID</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>処理保証</h3>
+      <ul>
+        <li>マスキング処理はすべて端末内で完結</li>
+        <li>マスキング前のオリジナル画像は即時破棄</li>
+        <li>マスキング辞書は薬局ごとにカスタマイズ可</li>
+        <li>誤検出を発見した場合は即日辞書更新で対応</li>
+        <li>定期的に薬局担当者による目視サンプリング検証を実施</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>3. 保管期間</h2>
+  <table>
+    <thead>
+      <tr><th>データ種別</th><th>保管期間</th><th>保管場所</th><th>削除方式</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>イベントログ（操作時刻・アプリ名等）</td>
+        <td class="center">90日</td>
+        <td>レセコン端末内 <code>%APPDATA%\WorkScope\data</code></td>
+        <td>期限超過分を日次バッチで自動削除</td>
+      </tr>
+      <tr>
+        <td>マスク済みスクリーンショット</td>
+        <td class="center">30日</td>
+        <td>レセコン端末内 <code>%APPDATA%\WorkScope\data</code></td>
+        <td>期限超過分を日次バッチで自動削除</td>
+      </tr>
+      <tr>
+        <td>解析側で受領したデータ</td>
+        <td class="center">プロジェクト終了後30日以内</td>
+        <td>暗号化された解析環境</td>
+        <td>解析環境ごと安全消去（証明書発行）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4. 削除手順</h2>
+  <ol>
+    <li><strong>個別削除</strong>: タスクトレイから「直近スクショを確認」→ 該当画像を選択 → その場で削除可能。</li>
+    <li><strong>全データ削除</strong>: タスクトレイから「アンインストール」→「データも削除」を選択。<code>%APPDATA%\WorkScope</code> 配下を完全削除。</li>
+    <li><strong>解析側からの削除請求</strong>: 後述の窓口にご連絡いただくと、解析側に保管中のデータを7営業日以内に削除し、削除証明書を発行します。</li>
+  </ol>
+
+  <h2>5. 開示請求・削除請求の窓口</h2>
+  <div class="box">
+    <p style="font-size:9pt;">
+      <strong>窓口</strong>: <span class="placeholder">[担当者名]</span> / <span class="placeholder">[電話番号]</span> / <span class="placeholder">[メールアドレス]</span><br>
+      <strong>受付時間</strong>: 平日 9:00〜18:00（土日祝・年末年始除く）<br>
+      <strong>対応SLA</strong>: 開示・削除請求は受付日から原則7営業日以内に対応。緊急時は当日対応も可能。<br>
+      <strong>本人確認</strong>: 同意書のご署名と照合のうえ対応。代理人による請求の場合は委任状を必要とします。
+    </p>
+  </div>
+
+  <h2>6. 法的根拠</h2>
+  <div class="grid-2">
+    <div class="box">
+      <h3>個人情報保護法</h3>
+      <ul>
+        <li>第17条: 利用目的の特定（業務棚卸しに限定）</li>
+        <li>第21条: 取得時の利用目的の通知（同意書による明示）</li>
+        <li>第27条: 第三者提供の制限（外部送信を行わない）</li>
+        <li>第33条: 開示請求への対応（7営業日以内）</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>関連法令</h3>
+      <ul>
+        <li>薬剤師法: 守秘義務（第28条）に配慮した自動マスキング設計</li>
+        <li>医療法・薬局業務指針: 患者情報の漏えい防止措置</li>
+        <li>労働関連法: 個人の人事評価への利用は行わない（同意書に明記）</li>
+        <li>特定電子メール法: 本ツールはメール送信機能を実装していないため対象外</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>7. インシデント発生時の対応</h2>
+  <p>
+    マスキング誤検出・データ漏えいの疑い・端末紛失等のインシデントを覚知した場合、薬局担当者は直ちに上記窓口へご連絡ください。受領後1時間以内に切り分け対応を開始し、影響範囲確定後、本人通知・必要に応じて個人情報保護委員会への報告を実施します。
+  </p>
+
+  <div class="footer">
+    <div>WorkScope Collector / Data Handling Policy v1.0</div>
+    <div>発行: 2026年5月 / 1 / 1</div>
+  </div>
+
+</div>
+</body>
+</html>

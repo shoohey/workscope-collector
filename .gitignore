@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+.pytest_cache/
+
+# PyInstaller
+build/
+dist/
+*.manifest
+
+# Local data (must NEVER be committed - may contain captured screen data)
+data/
+screenshots/
+events/
+*.jsonl
+*.png
+*.jpg
+
+# Local artifacts
+build-artifacts/
+*.zip
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Environment
+.env
+.env.local
+*.log

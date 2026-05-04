@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>薬局業務 棚卸し→自動化プロジェクト ご提案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #f5f7fa;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #1a1a2e;
+  }
+  .slide {
+    width: 297mm;
+    height: 210mm;
+    margin: 16px auto;
+    padding: 18mm 22mm;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    page-break-after: always;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide:last-child { page-break-after: auto; }
+  .label {
+    font-size: 10pt;
+    color: #1e3a5f;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 6mm;
+  }
+  h1 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 36pt;
+    color: #1e3a5f;
+    line-height: 1.3;
+    margin-bottom: 6mm;
+  }
+  h2 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 26pt;
+    color: #1e3a5f;
+    line-height: 1.3;
+    margin-bottom: 6mm;
+  }
+  p, li { font-size: 13pt; line-height: 1.9; color: #1a1a2e; }
+  .sub { color: #4a5568; font-size: 13pt; line-height: 1.85; }
+  .footer {
+    position: absolute;
+    bottom: 10mm;
+    left: 22mm;
+    right: 22mm;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9pt;
+    color: #4a5568;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 4mm;
+  }
+  .placeholder { color: #c53030; font-weight: 700; }
+
+  /* 表紙 */
+  .cover {
+    justify-content: center;
+    background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
+  }
+  .cover h1 { font-size: 44pt; }
+  .cover .meta { margin-top: 12mm; color: #4a5568; font-size: 14pt; }
+
+  /* 数値強調 */
+  .big-number {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 56pt;
+    color: #1e3a5f;
+    line-height: 1;
+  }
+  .small-tag {
+    font-size: 10pt;
+    color: #4a5568;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* グリッド */
+  .cols-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8mm;
+    margin-top: 4mm;
+  }
+  .cols-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6mm;
+    margin-top: 4mm;
+  }
+  .cols-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5mm;
+    margin-top: 4mm;
+  }
+
+  .card {
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 7mm 7mm;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .card h3 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    color: #1e3a5f;
+    font-size: 16pt;
+    margin-bottom: 3mm;
+  }
+  .card .num {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 32pt;
+    color: #1e3a5f;
+    line-height: 1;
+    margin-bottom: 3mm;
+  }
+  .card p, .card li { font-size: 11.5pt; line-height: 1.8; color: #4a5568; }
+  .card ul { padding-left: 5mm; }
+
+  .strength-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 7mm;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .strength-card .num {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 14pt;
+    color: #ffffff;
+    background: #1e3a5f;
+    width: 12mm;
+    height: 12mm;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4mm;
+  }
+  .strength-card h3 {
+    color: #1e3a5f;
+    font-size: 18pt;
+    margin-bottom: 3mm;
+  }
+
+  /* タイムライン */
+  .timeline {
+    display: flex;
+    align-items: stretch;
+    gap: 4mm;
+    margin-top: 4mm;
+  }
+  .tl-item {
+    flex: 1;
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6mm 5mm;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    position: relative;
+  }
+  .tl-item .week {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    color: #1e3a5f;
+    font-size: 11pt;
+    letter-spacing: 0.08em;
+  }
+  .tl-item h4 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    color: #1a1a2e;
+    font-size: 14pt;
+    margin: 2mm 0 3mm;
+  }
+  .tl-item p { font-size: 10.5pt; color: #4a5568; line-height: 1.7; }
+
+  /* 課題テーブル */
+  .issue-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 4mm;
+  }
+  .issue-list li {
+    background: #f5f7fa;
+    border-left: 4px solid #975a16;
+    border-radius: 4px;
+    padding: 4mm 6mm;
+    margin-bottom: 3mm;
+    color: #1a1a2e;
+    font-size: 13pt;
+  }
+
+  /* 表 */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4mm;
+    font-size: 11.5pt;
+  }
+  th, td {
+    border: 1px solid #e2e8f0;
+    padding: 4mm 5mm;
+    text-align: left;
+  }
+  th {
+    background: #1e3a5f;
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  td.center { text-align: center; }
+  tbody tr:nth-child(even) { background: #f5f7fa; }
+
+  /* チェックリスト */
+  .check-list { list-style: none; padding: 0; margin-top: 4mm; }
+  .check-list li {
+    padding: 3mm 0 3mm 12mm;
+    position: relative;
+    font-size: 13pt;
+    color: #1a1a2e;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .check-list li:before {
+    content: "✓";
+    position: absolute;
+    left: 0; top: 3mm;
+    width: 8mm; height: 8mm;
+    background: #276749;
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 11pt;
+  }
+
+  /* 投資ボックス */
+  .invest-box {
+    background: #f5f7fa;
+    border: 2px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 10mm;
+    text-align: center;
+    margin-top: 6mm;
+  }
+  .invest-box .label-x { font-size: 12pt; color: #4a5568; letter-spacing: 0.1em; font-weight: 700; }
+  .invest-box .price {
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    color: #1e3a5f;
+    font-size: 36pt;
+    margin: 4mm 0;
+  }
+  .invest-box .note { color: #4a5568; font-size: 11.5pt; }
+
+  @page { size: A4 landscape; margin: 0; }
+  @media print {
+    html, body { background: #ffffff; }
+    .slide { box-shadow: none; margin: 0; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 1. 表紙 -->
+<section class="slide cover">
+  <div class="label">PROPOSAL</div>
+  <h1>薬局業務 棚卸し→自動化プロジェクト<br>ご提案</h1>
+  <div class="meta">
+    <span class="placeholder">[薬局名]</span> 様<br>
+    2026年5月 / WorkScope Collector
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>1 / 15</div>
+  </div>
+</section>
+
+<!-- 2. 課題 -->
+<section class="slide">
+  <div class="label">CHALLENGE / 01</div>
+  <h2>薬局業務には、見えない反復作業が多い</h2>
+  <p class="sub">処方箋受付・調剤・服薬指導・レセプト点検——日々の業務は多岐にわたりますが、<br>「どの作業に何分かかっているか」を正確に把握している薬局はほとんどありません。</p>
+  <ul class="issue-list">
+    <li>処方箋入力・レセコン操作などPC作業の所要時間が「肌感覚」でしか分からない</li>
+    <li>本来は薬剤師でなくても可能な作業が、薬剤師の手で行われ続けている</li>
+    <li>薬剤師の在席時間のうち、患者対応に使えている時間がどれだけあるか不明</li>
+    <li>RPAツールを入れたいが、何から自動化すべきか判断材料がない</li>
+  </ul>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>2 / 15</div>
+  </div>
+</section>
+
+<!-- 3. 提案 -->
+<section class="slide">
+  <div class="label">SOLUTION / 02</div>
+  <h2>WorkScope Collector で、業務を「データで」可視化</h2>
+  <p class="sub">2週間の業務記録 → 業務マップ生成 → 自動化候補抽出 → RPA / AIエージェント実装。<br>勘や記憶ではなく、実データに基づいた業務改善のための仕組みです。</p>
+  <div class="cols-4">
+    <div class="card">
+      <div class="num">01</div>
+      <h3>収集</h3>
+      <p>レセコン端末で2週間、業務をそのまま記録します。</p>
+    </div>
+    <div class="card">
+      <div class="num">02</div>
+      <h3>解析</h3>
+      <p>業務マップと反復パターンを抽出し、自動化候補を抽出します。</p>
+    </div>
+    <div class="card">
+      <div class="num">03</div>
+      <h3>RPA化</h3>
+      <p>優先度の高い業務から自動化を実装し、検証します。</p>
+    </div>
+    <div class="card">
+      <div class="num">04</div>
+      <h3>展開</h3>
+      <p>本番運用へ展開し、定量的に効果を測定します。</p>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>3 / 15</div>
+  </div>
+</section>
+
+<!-- 4. 強み1 -->
+<section class="slide">
+  <div class="label">STRENGTH / 03</div>
+  <h2>強み 1 オンデバイス完結</h2>
+  <div class="cols-2" style="margin-top: 6mm;">
+    <div class="strength-card">
+      <div class="num">01</div>
+      <h3>患者情報は端末から出ない</h3>
+      <p class="sub">本ツールはレセコン端末内で完結し、外部サーバーへのアップロードは一切行いません。インターネットを遮断した環境でも動作します。</p>
+      <ul style="margin-top: 4mm; padding-left: 5mm;">
+        <li>外部送信ゼロ・クラウド経由なし</li>
+        <li>すべてレセコン内ローカル保存</li>
+        <li>USBメモリでの物理回収のみ</li>
+        <li>BitLocker暗号化による持ち出し時保護</li>
+      </ul>
+    </div>
+    <div class="strength-card" style="background: #f5f7fa;">
+      <h3 style="color:#1e3a5f; margin-bottom:6mm;">設計上の保証</h3>
+      <table style="margin-top: 0;">
+        <thead>
+          <tr><th>項目</th><th class="center">本ツール</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>外部API通信</td><td class="center">なし</td></tr>
+          <tr><td>クラウド保存</td><td class="center">なし</td></tr>
+          <tr><td>外部からの遠隔操作</td><td class="center">不可</td></tr>
+          <tr><td>個人情報の自動マスキング</td><td class="center">あり</td></tr>
+          <tr><td>ネット遮断環境での動作</td><td class="center">対応</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>4 / 15</div>
+  </div>
+</section>
+
+<!-- 5. 強み2 -->
+<section class="slide">
+  <div class="label">STRENGTH / 04</div>
+  <h2>強み 2 イベント駆動の収集</h2>
+  <p class="sub">単純な定期スクリーンショットではなく、ウィンドウやアプリケーションが切り替わったタイミングで記録するため、<br>業務フローの遷移が綺麗に取得できます。</p>
+  <div class="cols-3" style="margin-top: 6mm;">
+    <div class="card">
+      <div class="num">○</div>
+      <h3>業務フローの再現性</h3>
+      <p>「処方箋入力 → 調剤指示 → レセプト確認」のような一連の動線が、時系列で正確に再構成できます。</p>
+    </div>
+    <div class="card">
+      <div class="num">○</div>
+      <h3>効率的なデータ量</h3>
+      <p>定期撮影と比較してデータ量が約1/5。反復作業の特定にも有効で、解析速度が向上します。</p>
+    </div>
+    <div class="card">
+      <div class="num">○</div>
+      <h3>滞在時間の自動算出</h3>
+      <p>各画面・各アプリでの滞在時間を秒単位で自動算出。「何にどれだけ時間を使っているか」が一目で把握できます。</p>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>5 / 15</div>
+  </div>
+</section>
+
+<!-- 6. 強み3 -->
+<section class="slide">
+  <div class="label">STRENGTH / 05</div>
+  <h2>強み 3 自動マスキング</h2>
+  <p class="sub">薬剤師法・個人情報保護法を遵守した設計。患者個人情報は端末内で自動的に黒塗り処理され、原本は即時破棄されます。</p>
+  <div class="cols-2" style="margin-top: 6mm;">
+    <div class="strength-card">
+      <h3>マスキング対象</h3>
+      <ul style="padding-left: 5mm;">
+        <li>患者氏名（漢字・かな・カナ）</li>
+        <li>保険証番号・記号番号</li>
+        <li>生年月日（複数形式に対応）</li>
+        <li>電話番号・住所</li>
+        <li>マイナンバー・処方箋ID</li>
+      </ul>
+    </div>
+    <div class="strength-card">
+      <h3>処理フロー</h3>
+      <p style="margin-bottom: 3mm;">スクショ取得 → OCR認識 → 個人情報検出 → 黒塗り処理 → マスク済み画像のみ保存 → <strong style="color:#c53030;">原本は即時破棄</strong></p>
+      <p>マスキング辞書は薬局ごとに最適化可能。誤検出時は即日アップデートで対応します。</p>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>6 / 15</div>
+  </div>
+</section>
+
+<!-- 7. フェーズ1: 収集 -->
+<section class="slide">
+  <div class="label">PHASE 1 / 06</div>
+  <h2>フェーズ1 収集（2週間）</h2>
+  <p class="sub">取るもの・取らないものを明確にし、薬剤師さんに安心して通常業務を続けていただきます。</p>
+  <div class="cols-2" style="margin-top: 6mm;">
+    <div class="strength-card">
+      <h3 style="color:#975a16;">取得するもの</h3>
+      <ul style="padding-left: 5mm;">
+        <li>マスク済みアクティブウィンドウのスクリーンショット</li>
+        <li>マスク済みウィンドウタイトル</li>
+        <li>使用アプリケーション名</li>
+        <li>操作時刻・各画面の滞在時間</li>
+      </ul>
+    </div>
+    <div class="strength-card">
+      <h3 style="color:#276749;">取得しないもの</h3>
+      <ul style="padding-left: 5mm;">
+        <li>キーボード入力内容（キーロガー機能なし）</li>
+        <li>クリップボードの内容</li>
+        <li>マイク・カメラ</li>
+        <li>パスワード入力画面（自動破棄）</li>
+        <li>マスキング前のオリジナル画像</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>7 / 15</div>
+  </div>
+</section>
+
+<!-- 8. フェーズ2: 解析 -->
+<section class="slide">
+  <div class="label">PHASE 2 / 07</div>
+  <h2>フェーズ2 解析（1週間）</h2>
+  <p class="sub">収集データから業務マップを生成し、自動化候補に優先度スコアをつけます。</p>
+  <div class="cols-3" style="margin-top: 6mm;">
+    <div class="card">
+      <h3>業務マップ生成</h3>
+      <p>使用アプリ・画面の遷移をネットワーク図で可視化。「どの業務に、誰が、どれだけ時間を使っているか」を見える化します。</p>
+    </div>
+    <div class="card">
+      <h3>反復パターン抽出</h3>
+      <p>同じ操作の繰り返し・コピペ的な作業・複数画面の同時操作を自動検出。RPA化に最適な業務を見つけ出します。</p>
+    </div>
+    <div class="card">
+      <h3>自動化候補スコアリング</h3>
+      <p>「頻度 × 所要時間 × 自動化容易度」で優先順位をつけ、ROIの高い業務から実装提案します。</p>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>8 / 15</div>
+  </div>
+</section>
+
+<!-- 9. フェーズ3: RPA化 -->
+<section class="slide">
+  <div class="label">PHASE 3 / 08</div>
+  <h2>フェーズ3 RPA化（2週間）</h2>
+  <p class="sub">優先度の高い業務から、適切なツールを選んで自動化を実装します。</p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">技術</th>
+        <th style="width: 35%;">適した業務</th>
+        <th style="width: 40%;">特徴</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Power Automate Desktop</td>
+        <td>レセコン定型入力、複数画面のコピペ作業</td>
+        <td>Microsoft標準。Windows 10/11に追加コストなしで利用可能</td>
+      </tr>
+      <tr>
+        <td>pywinauto</td>
+        <td>レセコンの細かいウィンドウ操作、独自帳票出力</td>
+        <td>Pythonベース。GUIに表れない要素も正確に操作可能</td>
+      </tr>
+      <tr>
+        <td>AIエージェント</td>
+        <td>処方内容の確認補助、レセプト点検補助、薬歴記載支援</td>
+        <td>判断を伴う業務に対応。ローカルLLM運用も検討可能</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>9 / 15</div>
+  </div>
+</section>
+
+<!-- 10. フェーズ4: 展開 -->
+<section class="slide">
+  <div class="label">PHASE 4 / 09</div>
+  <h2>フェーズ4 展開・効果測定</h2>
+  <p class="sub">本番運用へ移行し、自動化前後の所要時間を比較。改善サイクルを継続します。</p>
+  <div class="cols-2" style="margin-top: 6mm;">
+    <div class="strength-card">
+      <h3>展開・教育</h3>
+      <ul style="padding-left: 5mm;">
+        <li>自動化フロー実行の操作研修（30分）</li>
+        <li>例外発生時の手動切り戻し手順</li>
+        <li>運用マニュアル・トラブル対応書を納品</li>
+      </ul>
+    </div>
+    <div class="strength-card">
+      <h3>効果測定</h3>
+      <ul style="padding-left: 5mm;">
+        <li>WorkScope Collector で再度1週間計測</li>
+        <li>自動化前後の所要時間を比較</li>
+        <li>削減時間と空き時間の活用提案レポート</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>10 / 15</div>
+  </div>
+</section>
+
+<!-- 11. 期待効果 -->
+<section class="slide">
+  <div class="label">EXPECTED OUTCOME / 10</div>
+  <h2>期待効果</h2>
+  <div class="cols-3" style="margin-top: 6mm;">
+    <div class="card" style="background: #ffffff;">
+      <div class="small-tag">反復作業の削減率</div>
+      <div class="big-number">60-80<span style="font-size:24pt;">%</span></div>
+      <p style="margin-top: 4mm;">対象とした反復作業について、業界事例ベースで60〜80%の削減が見込めます。</p>
+    </div>
+    <div class="card" style="background: #ffffff;">
+      <div class="small-tag">薬剤師の患者対応時間</div>
+      <div class="big-number">+25<span style="font-size:24pt;">%</span></div>
+      <p style="margin-top: 4mm;">PC作業の自動化により、服薬指導・在宅対応など患者と向き合う時間が増加します。</p>
+    </div>
+    <div class="card" style="background: #ffffff;">
+      <div class="small-tag">投資回収期間（目安）</div>
+      <div class="big-number">6-12<span style="font-size:24pt;">ヶ月</span></div>
+      <p style="margin-top: 4mm;">削減した人件費換算ベースでの試算。実績値はフェーズ4の効果測定で確定します。</p>
+    </div>
+  </div>
+  <p class="sub" style="margin-top: 8mm; font-size: 10.5pt;">※ 業界事例および類似プロジェクトの平均値です。実際の効果は薬局の業務構成により変動します。</p>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>11 / 15</div>
+  </div>
+</section>
+
+<!-- 12. スケジュール -->
+<section class="slide">
+  <div class="label">SCHEDULE / 11</div>
+  <h2>スケジュール（全約5週間）</h2>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="week">WEEK 1-2</div>
+      <h4>フェーズ1<br>収集</h4>
+      <p>同意書取得→インストール→2週間の業務記録。日常業務に支障を与えません。</p>
+    </div>
+    <div class="tl-item">
+      <div class="week">WEEK 3</div>
+      <h4>フェーズ2<br>解析</h4>
+      <p>業務マップ・反復パターン分析・自動化候補スコアリング。中間レビュー実施。</p>
+    </div>
+    <div class="tl-item">
+      <div class="week">WEEK 4-5</div>
+      <h4>フェーズ3<br>RPA化</h4>
+      <p>優先度の高い3〜5業務を自動化実装・検証。動作確認とユーザー受入テスト。</p>
+    </div>
+    <div class="tl-item">
+      <div class="week">WEEK 6+</div>
+      <h4>フェーズ4<br>展開・測定</h4>
+      <p>本番展開→1週間後の再計測→効果測定レポート→次の改善提案。</p>
+    </div>
+  </div>
+  <p class="sub" style="margin-top: 8mm;">※ 各フェーズの境界では薬局担当者様とのレビュー会議を設け、スコープ調整を行います。</p>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>12 / 15</div>
+  </div>
+</section>
+
+<!-- 13. 投資 -->
+<section class="slide">
+  <div class="label">INVESTMENT / 12</div>
+  <h2>投資（概算）</h2>
+  <p class="sub">業務範囲・自動化対象数により変動するため、詳細はヒアリング後に個別ご提案いたします。</p>
+  <div class="cols-2" style="margin-top: 4mm;">
+    <div class="invest-box">
+      <div class="label-x">フェーズ1〜2</div>
+      <div class="price">個別ご提案</div>
+      <div class="note">収集ツール導入・業務マップ作成・自動化候補レポート</div>
+    </div>
+    <div class="invest-box">
+      <div class="label-x">フェーズ3〜4</div>
+      <div class="price">個別ご提案</div>
+      <div class="note">RPA・AIエージェント実装・展開・効果測定</div>
+    </div>
+  </div>
+  <p class="sub" style="margin-top: 6mm; font-size: 11pt;">
+    ※ お見積りは収集対象端末数・自動化対象業務数によって決定します。フェーズ1終了時点で、フェーズ3以降の見積りを再提示することも可能です。
+  </p>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>13 / 15</div>
+  </div>
+</section>
+
+<!-- 14. 次のステップ -->
+<section class="slide">
+  <div class="label">NEXT STEP / 13</div>
+  <h2>次のステップ</h2>
+  <ul class="check-list">
+    <li>同意書を薬剤師さん全員にご署名いただきます（本日〜明日）</li>
+    <li>レセコンPCにWorkScope Collectorをインストールします（明日訪問）</li>
+    <li>2週間の業務記録を実施します（薬局担当者は通常業務通り）</li>
+    <li>2週間後、収集データの回収とレビュー会議を実施します</li>
+    <li>解析レポートとともに、フェーズ3以降のご提案を行います</li>
+  </ul>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>14 / 15</div>
+  </div>
+</section>
+
+<!-- 15. お問い合わせ -->
+<section class="slide cover">
+  <div class="label">CONTACT</div>
+  <h1 style="font-size:36pt;">お問い合わせ</h1>
+  <div style="margin-top: 8mm; font-size: 14pt; line-height: 2;">
+    会社名: <span class="placeholder">[会社名]</span><br>
+    担当者: <span class="placeholder">[担当者名]</span><br>
+    電話: <span class="placeholder">[電話番号]</span><br>
+    メール: <span class="placeholder">[メールアドレス]</span><br>
+    所在地: <span class="placeholder">[所在地]</span>
+  </div>
+  <p class="sub" style="margin-top: 12mm;">
+    本資料の内容についてのご質問、追加のご要望、訪問日程のご相談など、お気軽にご連絡ください。
+  </p>
+  <div class="footer">
+    <div>Pharmacy Workflow Automation Proposal</div>
+    <div>15 / 15</div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+# WorkScope Collector - Windows runtime dependencies
+# Python 3.11 (Windows x64)
+
+# Screen capture (high-performance, multi-monitor)
+mss==9.0.1
+
+# Window event hooks, process info, foreground window
+pywin32==306
+psutil==5.9.8
+
+# Image processing
+Pillow==10.2.0
+numpy==1.26.4
+opencv-python-headless==4.9.0.80
+
+# OCR (Japanese, fully offline once models are downloaded)
+paddlepaddle==2.6.0
+paddleocr==2.7.3
+
+# Tray icon UI
+pystray==0.19.5
+
+# Config / logging
+pydantic==2.6.1
+python-dateutil==2.8.2
+
+# Build
+pyinstaller==6.4.0

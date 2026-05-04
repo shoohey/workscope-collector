@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>業務スクリーン記録ツール 利用同意書</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #f5f7fa;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #1a1a2e;
+    line-height: 1.8;
+    font-size: 11pt;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    padding: 18mm 18mm;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 22pt;
+    color: #1e3a5f;
+    text-align: center;
+    margin-bottom: 6mm;
+    letter-spacing: 0.02em;
+  }
+  .lead {
+    color: #4a5568;
+    margin-bottom: 6mm;
+    font-size: 10.5pt;
+  }
+  h2 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 13pt;
+    color: #1e3a5f;
+    margin: 7mm 0 3mm;
+    padding-left: 8px;
+    border-left: 4px solid #1e3a5f;
+  }
+  ul, ol {
+    margin: 0 0 4mm 6mm;
+  }
+  li {
+    margin-bottom: 1.5mm;
+    font-size: 10.5pt;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-right: 6px;
+  }
+  .badge-collect { background: #fff4e6; color: #975a16; border: 1px solid #f0c896; }
+  .badge-not-collect { background: #e7f3ec; color: #276749; border: 1px solid #aed4bb; }
+  .label {
+    font-size: 9pt;
+    color: #4a5568;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .placeholder {
+    color: #c53030;
+    font-weight: 700;
+  }
+  .meta-box {
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4mm 5mm;
+    margin: 4mm 0;
+    font-size: 10pt;
+    color: #4a5568;
+  }
+  .sign-area {
+    margin-top: 10mm;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6mm;
+  }
+  .sign-row {
+    display: flex;
+    gap: 6mm;
+    margin-bottom: 5mm;
+  }
+  .sign-cell {
+    flex: 1;
+    border-bottom: 1px solid #1a1a2e;
+    padding: 0 3mm 1mm;
+    min-height: 14mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .sign-cell .label { margin-bottom: 1mm; }
+  .footer-note {
+    margin-top: 6mm;
+    font-size: 9pt;
+    color: #4a5568;
+    text-align: center;
+  }
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #ffffff; }
+    .page { box-shadow: none; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="label" style="text-align:center;">CONSENT FORM</div>
+  <h1>業務スクリーン記録ツール 利用同意書</h1>
+
+  <p class="lead">
+    薬局名: <span class="placeholder">[薬局名]</span>（以下「当薬局」といいます）は、
+    薬剤師業務の棚卸しおよび業務自動化（RPA・AIエージェント化）の検討を目的として、業務用PC上で「WorkScope Collector」（以下「本ツール」）を運用します。
+    本書面は、本ツールが収集する情報、収集しない情報、ご本人の権利等について明示し、ご理解のうえご署名をいただくためのものです。
+  </p>
+
+  <h2>1. 本ツールが収集する情報</h2>
+  <ul>
+    <li><span class="badge badge-collect">収集</span>アクティブウィンドウのスクリーンショット（マスキング処理済み・患者個人情報は黒塗り）</li>
+    <li><span class="badge badge-collect">収集</span>ウィンドウタイトル（マスキング処理済み）</li>
+    <li><span class="badge badge-collect">収集</span>使用アプリケーション名・操作時刻・各画面の滞在時間</li>
+  </ul>
+
+  <h2>2. 本ツールが収集しない情報</h2>
+  <ul>
+    <li><span class="badge badge-not-collect">非収集</span>キーボード入力内容（キーロガー機能は実装していません）</li>
+    <li><span class="badge badge-not-collect">非収集</span>クリップボードの内容</li>
+    <li><span class="badge badge-not-collect">非収集</span>マイク音声・カメラ映像</li>
+    <li><span class="badge badge-not-collect">非収集</span>パスワード入力画面（自動検出してスクリーンショットを破棄）</li>
+  </ul>
+
+  <h2>3. 個人情報の取り扱い</h2>
+  <ul>
+    <li>患者氏名・保険証番号・生年月日・電話番号・住所等は、<strong>端末内で自動マスキング</strong>（黒塗り）されます。</li>
+    <li>マスキング前のオリジナルスクリーンショットは<strong>即座に破棄</strong>され、ファイルとして保存されることはありません。</li>
+    <li>収集データはすべて<strong>レセコン端末内のローカル保存</strong>とし、外部サーバーへのアップロード・送信は行いません。</li>
+    <li>解析時はUSBメモリ等の物理媒体にて回収し、回収後の取扱いは別途データ取扱い方針に従います。</li>
+  </ul>
+
+  <h2>4. あなたの権利</h2>
+  <ol>
+    <li><strong>一時停止する権利</strong>: タスクトレイのアイコンから1クリックで録画を一時停止できます。</li>
+    <li><strong>アンインストールする権利</strong>: いつでも本ツールを完全にアンインストールできます。</li>
+    <li><strong>開示・削除を請求する権利</strong>: ご自身に関する収集データの開示請求および削除請求が可能です。</li>
+    <li><strong>同意を撤回する権利</strong>: 一度同意した後でも、書面により同意を撤回できます。撤回によって不利益な扱いを受けることはありません。</li>
+  </ol>
+
+  <h2>5. 利用目的</h2>
+  <ul>
+    <li>業務全体の棚卸し、および反復作業の特定によるRPA・AIエージェント化の検討</li>
+    <li>業務効率化・薬剤師の患者対応時間の最大化に資する分析</li>
+    <li><strong>個人の人事評価・勤務評価には一切使用しません。</strong></li>
+  </ul>
+
+  <h2>6. データ保管期間</h2>
+  <div class="meta-box">
+    イベントログ（操作時刻・アプリ名等）: <strong>90日間</strong>保管後に自動削除<br>
+    マスク済みスクリーンショット: <strong>30日間</strong>保管後に自動削除
+  </div>
+
+  <h2>7. 同意の確認</h2>
+  <p style="font-size:10.5pt;">
+    上記内容を確認し、本ツールによる業務記録に同意します。
+  </p>
+
+  <div class="sign-area">
+    <div class="sign-row">
+      <div class="sign-cell">
+        <span class="label">氏名（自署）</span>
+      </div>
+      <div class="sign-cell" style="max-width: 60mm;">
+        <span class="label">署名日</span>
+      </div>
+    </div>
+    <div class="sign-row">
+      <div class="sign-cell">
+        <span class="label">所属（薬局名・部署）</span>
+      </div>
+      <div class="sign-cell" style="max-width: 60mm;">
+        <span class="label">役職</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    開示請求・削除請求・お問い合わせ: <span class="placeholder">[連絡先]</span><br>
+    本書面の控えは、署名後ご本人にもお渡しいたします。
+  </p>
+</div>
+</body>
+</html>
