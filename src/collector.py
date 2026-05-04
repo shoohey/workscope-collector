@@ -93,20 +93,23 @@ def _setup_logger() -> logging.Logger:
 logger = _setup_logger()
 
 
-# ---- マスカーのインターフェース仮置き ------------------------------------
+# ---- OCR + マスキング ----------------------------------------------------
+
+# OCR と masker は遅延 import（PaddleOCR は重く Mac 開発環境では未導入のため）
+try:
+    from masker import MaskResult, mask_image  # type: ignore
+    _HAS_MASKER = True
+except Exception:
+    _HAS_MASKER = False
+    MaskResult = None  # type: ignore
 
 try:
-    from masker import mask_image  # type: ignore  # noqa: F401
-except Exception:  # 別エージェント実装中のため未存在許容
-    def mask_image(image: "Image.Image", cfg: CollectorConfig) -> tuple["Image.Image", dict[str, Any]]:  # type: ignore[no-redef]
-        """フォールバック: 画像をそのまま返す（マスカー未実装時用）."""
-        meta = {
-            "ocr_text_summary": "",
-            "ocr_token_count": 0,
-            "mask_applied_count": 0,
-            "mask_categories": [],
-        }
-        return image, meta
+    from ocr import OCRBox, OCREngine  # type: ignore
+    _HAS_OCR = True
+except Exception:
+    _HAS_OCR = False
+    OCRBox = None  # type: ignore
+    OCREngine = None  # type: ignore
 
 
 # ---- ウィンドウ情報取得 --------------------------------------------------
@@ -362,6 +365,7 @@ class Collector:
         cfg: CollectorConfig | None = None,
         event_store: EventStore | None = None,
         screenshot_store: ScreenshotStore | None = None,
+        ocr_engine: Any = None,
     ) -> None:
         self._cfg = cfg or load_config()
         self._events = event_store or EventStore()
@@ -374,6 +378,10 @@ class Collector:
         self._watcher = WindowChangeWatcher(self._on_window_change)
         self._stop = threading.Event()
         self._last_cleanup_day: str | None = None
+
+        # OCR エンジンは遅延インスタンス化（PaddleOCR は初期化が重い）
+        self._ocr_engine: Any = ocr_engine
+        self._ocr_init_attempted = ocr_engine is not None
 
     # --- 公開 -------------------------------------------------------------
     @property
@@ -427,6 +435,38 @@ class Collector:
         except Exception:
             logger.exception("daily cleanup failed")
         self._last_cleanup_day = today
+
+    def _ensure_ocr(self) -> Any:
+        """OCREngine を遅延初期化して返す（不可なら None）."""
+        if self._ocr_engine is not None:
+            return self._ocr_engine
+        if self._ocr_init_attempted:
+            return None
+        self._ocr_init_attempted = True
+        if not _HAS_OCR:
+            logger.warning("OCREngine not importable; running without OCR")
+            return None
+        try:
+            self._ocr_engine = OCREngine(
+                languages=list(self._cfg.ocr_languages),
+                max_image_side=int(self._cfg.ocr_max_image_side),
+            )
+            logger.info("OCREngine initialized")
+        except Exception:
+            logger.exception("OCREngine init failed; running without OCR")
+            self._ocr_engine = None
+        return self._ocr_engine
+
+    def _run_ocr(self, image: "Image.Image") -> list:
+        """画像から OCRBox 一覧を取得（失敗時は空）."""
+        engine = self._ensure_ocr()
+        if engine is None:
+            return []
+        try:
+            return engine.extract(image)
+        except Exception:
+            logger.exception("OCR extract failed")
+            return []
 
     def _on_window_change(self, info: WindowInfo) -> dict[str, Any] | None:
         """ウィンドウ変化 1 回ぶんの処理。例外はログして None を返す."""
@@ -495,24 +535,45 @@ class Collector:
             logger.warning("capture failed; emit metadata-only event")
             return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
-        # ---- マスキング ----
+        # ---- OCR + マスキング ----
+        # 失敗時の安全側挙動:
+        #   strict マスキング前の生スクショを絶対にディスクに残さない。
+        #   drop_image_if_unmaskable=True なら画像なしのメタイベントのみ書く。
+        if not _HAS_MASKER:
+            logger.error("masker module unavailable; refusing to save raw screenshot")
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+
+        ocr_boxes = self._run_ocr(img)
+
         try:
-            masked, mask_meta = mask_image(img, self._cfg)
+            mr = mask_image(img, ocr_boxes, strict=bool(self._cfg.mask_strict_mode))
         except Exception:
             logger.exception("mask_image failed")
             if self._cfg.drop_image_if_unmaskable:
-                logger.warning("drop image because unmaskable")
+                logger.warning("drop image because mask_image raised")
                 return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
-            masked, mask_meta = img, {
-                "ocr_text_summary": "",
-                "ocr_token_count": 0,
-                "mask_applied_count": 0,
-                "mask_categories": [],
-            }
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+
+        if mr.unmaskable and self._cfg.drop_image_if_unmaskable:
+            logger.warning(
+                "unmaskable content suspected (boxes=%d, mask_count=%d); drop image",
+                len(ocr_boxes),
+                mr.mask_count,
+            )
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+
+        # OCR が完全に空（パドル未導入 等）の場合、テキストが読めていないので
+        # 「マスクすべきか判定できない」状態。strict + drop_image_if_unmaskable
+        # の組み合わせならスクショは保存しない（メタのみ残す）。
+        if not ocr_boxes and self._cfg.mask_strict_mode and self._cfg.drop_image_if_unmaskable:
+            logger.warning(
+                "OCR returned 0 boxes in strict mode; drop image (metadata-only event)"
+            )
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
         # ---- 保存 ----
         try:
-            saved = self._shots.save(masked, session_id=self._session_id)
+            saved = self._shots.save(mr.masked_image, session_id=self._session_id)
             self._capture_times.append(now)
         except Exception:
             logger.exception("screenshot save failed")
@@ -522,10 +583,11 @@ class Collector:
             "filename": saved.filename,
             "width": saved.width,
             "height": saved.height,
-            "ocr_text_summary": mask_meta.get("ocr_text_summary", ""),
-            "ocr_token_count": int(mask_meta.get("ocr_token_count", 0) or 0),
-            "mask_applied_count": int(mask_meta.get("mask_applied_count", 0) or 0),
-            "mask_categories": list(mask_meta.get("mask_categories", []) or []),
+            "ocr_text_summary": mr.text_summary,
+            "ocr_token_count": len(ocr_boxes),
+            "mask_applied_count": int(mr.mask_count),
+            "mask_categories": list(mr.mask_categories),
+            "unmaskable_suspected": bool(mr.unmaskable),
         }
         return self._write_event(info, prev_proc, dwell_ms_prev, ss_payload, saved.path)
 
@@ -537,7 +599,7 @@ class Collector:
         screenshot: dict[str, Any] | None,
         _path: Path | None,
     ) -> dict[str, Any]:
-        title_masked, title_hash = mask_window_title(info.title)
+        title_masked, title_hash, title_categories = mask_window_title(info.title)
         event: dict[str, Any] = {
             "session_id": self._session_id,
             "event_seq": self._next_seq(),
@@ -551,6 +613,7 @@ class Collector:
             "window": {
                 "title": title_masked,
                 "title_raw_hash": title_hash,
+                "title_mask_categories": title_categories,
                 "hwnd": info.hwnd,
                 "rect": list(info.rect),
                 "monitor": info.monitor,

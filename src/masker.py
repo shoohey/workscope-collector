@@ -37,6 +37,7 @@ CAT_POSTAL = "postal_code"
 CAT_MY_NUMBER = "my_number"
 CAT_PRESCRIPTION_WITH_ID = "prescription_with_id"
 CAT_NAME_LIKE_KANJI = "name_like_kanji"  # strict mode のヒューリスティック
+CAT_EMAIL = "email"
 
 
 # --- 個別正規表現 ---
@@ -61,8 +62,10 @@ RE_DATE_WAREKI = re.compile(
 # 電話番号
 RE_PHONE = re.compile(r"0\d{1,4}[-(]?\d{1,4}[-)]?\d{3,4}")
 
-# 郵便番号
-RE_POSTAL = re.compile(r"〒?\s?\d{3}-?\d{4}")
+# 郵便番号: 「数字非隣接」境界（漢字直後の数字でも境界判定できるよう
+# Python の `\b` ではなく lookbehind/lookahead で数字非隣接を要求する。
+# 例: 「住所〒160-0023」も「123456789」の中で部分マッチしない）
+RE_POSTAL = re.compile(r"(?<!\d)〒?\s?\d{3}-?\d{4}(?!\d)")
 
 # 住所（都道府県+市区町村+番地）
 RE_ADDRESS = re.compile(
@@ -75,13 +78,20 @@ RE_ADDRESS = re.compile(
 )
 
 # 保険者番号 / 記号番号 / カルテ No 近傍の数字列
-RE_DIGITS_8 = re.compile(r"\d{8}")
+# Python `\b` は漢字-数字境界を認識しないため lookbehind/lookahead で
+# 「数字非隣接」を要求。これにより「保険者番号12345678」のように区切りなく
+# 連結したケースでも 8 桁にマッチし、9 桁以上の連続数字には部分マッチしない。
+RE_DIGITS_8 = re.compile(r"(?<!\d)\d{8}(?!\d)")
 RE_INSURANCE_CARD = re.compile(r"\d{6,10}[-－]\d{1,4}")
-RE_MY_NUMBER = re.compile(r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b")
+# Python `\b` は漢字-数字境界を認識しないので lookbehind/lookahead で代用
+RE_MY_NUMBER = re.compile(r"(?<!\d)\d{4}[-\s]?\d{4}[-\s]?\d{4}(?!\d)")
 RE_DIGITS_RUN = re.compile(r"\d{4,}")  # 4桁以上の数字（ID候補）
 
 # 漢字連続（人名らしき）: strictモード用ヒューリスティック
 RE_KANJI_RUN = re.compile(r"[一-鿿々]{2,5}")
+
+# メールアドレス（タイトル/OCRどちらでも文脈不要で発火）
+RE_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 # 文脈キーワード（box内に登場すれば数字列をその種別に格上げ）
 KEYWORDS_INSURANCE = ("保険者番号", "保険番号", "保険者", "記号番号", "記号", "番号")
@@ -111,22 +121,27 @@ class MaskRule:
 
 
 DEFAULT_RULES: list[MaskRule] = [
-    # 1. 患者氏名
+    # 0. メールアドレス（context 不要・常時発火）
+    MaskRule("email", RE_EMAIL, CAT_EMAIL),
+    # 1. 高信頼度の番号パターン（区切り記号必須なので誤マッチ少ない、context 不要）
+    #    薬品名 + 番号が同一 box に混在しても番号が漏れないよう、name 系より前。
+    MaskRule("my_number", RE_MY_NUMBER, CAT_MY_NUMBER),
+    MaskRule("insurance_card_no", RE_INSURANCE_CARD, CAT_INSURANCE_CARD),
+    # 2. 患者氏名
     MaskRule("name_kanji_honorific", RE_NAME_KANJI_HONORIFIC, CAT_PATIENT_NAME),
     MaskRule("name_kana_honorific", RE_NAME_KANA_HONORIFIC, CAT_PATIENT_NAME_KANA),
     MaskRule("name_kana_long", RE_KANA_LONG, CAT_PATIENT_NAME_KANA),
-    # 2-4. 番号系（文脈キーワード強化）
-    MaskRule("my_number", RE_MY_NUMBER, CAT_MY_NUMBER, KEYWORDS_MY_NUMBER),
-    MaskRule("insurance_card_no", RE_INSURANCE_CARD, CAT_INSURANCE_CARD, KEYWORDS_INSURANCE),
+    # 3. 文脈依存の番号系（context_keywords が box / 近傍にある時のみ発火）
+    #    薬品の用量等で 4 桁以上の数字が頻出するため誤マッチを避ける。
     MaskRule("insurance_8digits", RE_DIGITS_8, CAT_INSURANCE_ID, KEYWORDS_INSURANCE),
     MaskRule("patient_id_digits", RE_DIGITS_RUN, CAT_PATIENT_ID, KEYWORDS_PATIENT_ID),
-    # 5. 生年月日
+    # 4. 生年月日（区切り必須なので context 不要）
     MaskRule("date_wareki", RE_DATE_WAREKI, CAT_BIRTHDATE),
     MaskRule("date_kanji", RE_DATE_KANJI, CAT_BIRTHDATE),
     MaskRule("date_slash", RE_DATE_SLASH, CAT_BIRTHDATE),
-    # 6. 電話番号
+    # 5. 電話番号
     MaskRule("phone", RE_PHONE, CAT_PHONE),
-    # 7. 住所
+    # 6. 住所・郵便
     MaskRule("postal", RE_POSTAL, CAT_POSTAL),
     MaskRule("address", RE_ADDRESS, CAT_ADDRESS),
 ]
@@ -148,12 +163,28 @@ def _has_any_keyword(text: str, keywords: Iterable[str]) -> bool:
 
 
 def _is_drug_name_only(text: str) -> bool:
-    """テキストが薬品名のみ（患者IDなどを含まない）かを判定."""
+    """テキストが薬品名のみ（PIIを含まない）かを判定.
+
+    薬品名ホワイトリストを「マスクしない」根拠にしているので、
+    PII らしき表現（数字列・メール・電話・敬称・郵便・マイナンバー）が
+    1 つでも混在していたら ``False`` を返して通常のルール評価に回す。
+    """
     has_drug = any(d in text for d in COMMON_DRUG_NAMES)
     if not has_drug:
         return False
-    # 患者ID候補（4桁以上の数字）が混在している場合は薬品名だけとは見なさない
     if RE_DIGITS_RUN.search(text):
+        return False
+    if RE_EMAIL.search(text):
+        return False
+    if RE_PHONE.search(text):
+        return False
+    if RE_POSTAL.search(text):
+        return False
+    if RE_MY_NUMBER.search(text):
+        return False
+    if RE_NAME_KANJI_HONORIFIC.search(text):
+        return False
+    if RE_NAME_KANA_HONORIFIC.search(text):
         return False
     return True
 
@@ -252,15 +283,16 @@ def _classify_box(
         if extra_cats & {CAT_PHONE} and re.search(r"\d", text):
             matched.append(CAT_PHONE)
 
-    unmaskable = False
     # strict mode: 漢字連続だけのbox（敬称なし）も人名候補としてマスク
+    # マスクが成功しているので unmaskable=False のまま（黒塗り済みの画像は破棄しない）。
+    # 「unmaskable=True」 は呼び出し元で「画像を捨てる」シグナルになるため、
+    # マスク済みのデータをここで True にすると患者一覧などで全く画像が残らなくなる。
     if strict and not matched:
         stripped = text.strip()
         if RE_KANJI_RUN.fullmatch(stripped) and 2 <= len(stripped) <= 5:
             matched.append(CAT_NAME_LIKE_KANJI)
-            unmaskable = True  # 推測でのマスクなので unmaskable 疑いを上げる
 
-    return list(dict.fromkeys(matched)), unmaskable
+    return list(dict.fromkeys(matched)), False
 
 
 def _draw_black_rect(

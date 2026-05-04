@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -31,7 +32,7 @@ from masker import (  # noqa: E402
     mask_image,
 )
 from ocr import OCRBox  # noqa: E402
-from window_titles_mask import mask_window_title  # noqa: E402
+from window_titles import mask_window_title  # noqa: E402
 
 
 # --- ヘルパ ---
@@ -150,12 +151,18 @@ def test_mask_postal_code() -> None:
 
 # --- 7. strict mode: 未知漢字連続のヒューリスティック ---
 def test_strict_mode_masks_unknown_kanji_run() -> None:
-    """strict modeでは敬称なしの漢字2-5文字もマスクする（保険）."""
+    """strict modeでは敬称なしの漢字2-5文字もマスクする（保険）.
+
+    unmaskable=False とすることで、黒塗り済みの画像は破棄せず保存される。
+    （患者一覧画面で氏名が大量に出るため、True にすると業務フローが何も
+    残らなくなる。Codex P2 (2026-05-04) 反映。）
+    """
     img, boxes = _make_canvas([("田中花子", (10, 10, 200, 40))])
     result = mask_image(img, boxes, strict=True)
     assert result.mask_count >= 1
     assert CAT_NAME_LIKE_KANJI in result.mask_categories
-    assert result.unmaskable is True
+    # ヒューリスティックでマスクが成功した場合は unmaskable=False
+    assert result.unmaskable is False
 
 
 def test_non_strict_mode_does_not_mask_unknown_kanji() -> None:
@@ -229,7 +236,7 @@ def test_window_title_mask_phone() -> None:
     masked, h, cats = mask_window_title("受付 - 090-1234-5678")
     assert "[MASKED:phone]" in masked
     assert "phone" in cats
-    assert len(h) == 8
+    assert len(h) == 16
 
 
 def test_window_title_mask_name_kanji() -> None:
@@ -248,8 +255,199 @@ def test_window_title_empty() -> None:
 def test_window_title_no_pii() -> None:
     masked, h, cats = mask_window_title("ABC")
     assert masked == "ABC"
-    assert len(h) == 8
+    assert len(h) == 16
     assert cats == []
+
+
+# --- 13. Codex P1: マイナンバーが context 失効してもマスクされること --------
+def test_window_title_my_number_masked_even_without_context_keyword() -> None:
+    """元タイトルに "マイナンバー" が無くても 12 桁の数字列は強制マスクされる."""
+    masked, _, cats = mask_window_title("番号入力 - 1234-5678-9012")
+    assert "1234-5678-9012" not in masked
+    assert "[MASKED:my_number]" in masked
+    assert "my_number" in cats
+
+
+def test_window_title_my_number_with_context_still_masked() -> None:
+    """"マイナンバー" を含むタイトルでも数字列がマスクされる（contextが失われても発火）."""
+    masked, _, cats = mask_window_title("マイナンバー 1234 5678 9012 入力")
+    assert "1234 5678 9012" not in masked
+    assert "[MASKED:my_number]" in masked
+
+
+# --- 14. Codex P2: メールアドレスが必ずマスクされること -------------------
+def test_window_title_email_masked() -> None:
+    """email アドレスは context 不要で必ずマスクされる."""
+    masked, _, cats = mask_window_title("メール送信中 user@example.com")
+    assert "user@example.com" not in masked
+    assert "[MASKED:email]" in masked
+    assert "email" in cats
+
+
+def test_mask_image_email_in_box() -> None:
+    """OCR で email を含む box が来た場合もマスクされる."""
+    img, boxes = _make_canvas([("連絡先 user@example.com", (10, 10, 400, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "email" in result.mask_categories
+
+
+# --- 15. Codex P1 (2回目): 9桁・10桁・11桁ID で末尾1-3桁が漏れない -----------
+def test_window_title_9_digit_id_fully_masked() -> None:
+    """9 桁の連続数字は末尾まで完全にマスクされる（digits_8 ルールで先食いされない）."""
+    masked, _, _ = mask_window_title("患者ID 123456789")
+    # 9 桁の生数字が残っていない
+    assert not any(d.isdigit() for d in masked.replace("[MASKED:patient_id]", ""))
+    # マスクラベルは1つだけのはず
+    assert masked.count("[MASKED:patient_id]") == 1
+
+
+def test_window_title_unseparated_phone_fully_masked() -> None:
+    """ハイフン無し 11 桁電話番号が末尾まで完全にマスクされる."""
+    masked, _, _ = mask_window_title("受付 - 09012345678")
+    leftover = masked.replace("[MASKED:patient_id]", "").replace("[MASKED:phone]", "")
+    assert not any(c.isdigit() for c in leftover)
+
+
+def test_window_title_long_id_no_partial_leak() -> None:
+    """10桁 / 12桁 / 15桁の連続数字も生残りしない."""
+    for n_digits in (10, 12, 15):
+        digits = "1" * n_digits
+        title = f"レセプト {digits}"
+        masked, _, _ = mask_window_title(title)
+        leftover = re.sub(r"\[MASKED:[a-z_]+\]", "", masked)
+        assert digits not in leftover, f"raw digits leaked: {n_digits}-digit case"
+        # leftover に4桁以上の連続数字が残っていないこと
+        assert not re.search(r"\d{4,}", leftover), \
+            f"4+ digit run leaked in masked title for {n_digits}-digit case: {masked}"
+
+
+# --- 16. Codex P2 (3回目): 郵便番号が部分マスクで残らない -------------------
+def test_window_title_postal_code_fully_masked() -> None:
+    """〒160-0023 のような郵便番号が "〒160-" を残して部分マスクされない."""
+    masked, _, cats = mask_window_title("住所変更 〒160-0023 新宿区")
+    # 郵便番号の数字 / ハイフンが leftover に残らない
+    leftover = re.sub(r"\[MASKED:[a-z_]+\]", "", masked)
+    assert "160-0023" not in leftover
+    assert "160" not in leftover or "0023" not in leftover
+    # postal カテゴリでマスクされている
+    assert "postal_code" in cats or "patient_id" in cats
+
+
+# --- 17. Codex P2 (4回目): 8桁保険者番号は patient_id ではなく insurance_id 分類 -----
+def test_window_title_8_digit_insurance_id_classified() -> None:
+    """保険者番号 12345678 のような8桁数字は insurance_id として分類される."""
+    masked, _, cats = mask_window_title("保険者番号 12345678")
+    assert "12345678" not in masked
+    assert "[MASKED:insurance_id]" in masked
+    assert "insurance_id" in cats
+
+
+def test_window_title_8_digit_classification_consistent() -> None:
+    """文脈なし 8桁単独でも insurance_id 分類になる."""
+    masked, _, cats = mask_window_title("12345678 入力中")
+    assert "12345678" not in masked
+    assert "insurance_id" in cats
+
+
+# --- 18. Codex P2 (5回目): 薬品名 + email でも email がマスクされる ----------
+def test_mask_image_email_with_drug_name_box() -> None:
+    """薬品名 + email 混在 box でも email は必ずマスクされる."""
+    img, boxes = _make_canvas([("アムロジピン user@example.com", (10, 10, 500, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "email" in result.mask_categories
+
+
+def test_mask_image_drug_name_with_phone_is_masked() -> None:
+    """薬品名 + 電話番号でも電話番号がマスクされる."""
+    img, boxes = _make_canvas([("ロキソニン 090-1234-5678", (10, 10, 500, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "phone" in result.mask_categories
+
+
+def test_mask_image_drug_name_with_my_number_is_masked() -> None:
+    """薬品名 + マイナンバーでもマイナンバーがマスクされる."""
+    img, boxes = _make_canvas([("カロナール 1234-5678-9012", (10, 10, 500, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "my_number" in result.mask_categories
+
+
+def test_mask_image_drug_name_alone_not_masked() -> None:
+    """薬品名のみ（PII 無し）の box は引き続きマスクされない（誤マスク回避）."""
+    img, boxes = _make_canvas([("ロキソニン 60mg", (10, 10, 300, 40))])
+    result = mask_image(img, boxes, strict=False)
+    assert result.mask_count == 0
+
+
+# --- 19. Codex P1 (6回目): 漢字+数字直結でも境界が認識されてマスクされる ----
+def test_mask_image_kanji_digit_concatenation() -> None:
+    """「保険者番号12345678」のように区切り無しでマスクされる."""
+    img, boxes = _make_canvas([("保険者番号12345678", (10, 10, 400, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "insurance_id" in result.mask_categories
+    assert "12345678" not in result.text_summary
+
+
+def test_mask_image_kanji_my_number_concatenation() -> None:
+    """漢字+マイナンバーが区切り無しで連結してもマスクされる."""
+    img, boxes = _make_canvas([("マイナンバー1234-5678-9012", (10, 10, 500, 40))])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 1
+    assert "my_number" in result.mask_categories
+    assert "1234-5678-9012" not in result.text_summary
+
+
+# --- 20. Codex P2 (7回目): masker import 失敗時も window_titles は単独動作 ---
+# --- 21. 患者一覧画面のような複数氏名 box でも画像が破棄されないこと ----------
+def test_multiple_kanji_names_keep_image() -> None:
+    """敬称なし漢字氏名が並ぶ患者一覧では unmaskable=False のまま保存される."""
+    img, boxes = _make_canvas([
+        ("鈴木一郎", (10, 10, 200, 40)),
+        ("田中花子", (10, 60, 200, 90)),
+        ("佐藤太郎", (10, 110, 200, 140)),
+    ])
+    result = mask_image(img, boxes, strict=True)
+    assert result.mask_count >= 3
+    assert result.unmaskable is False
+    assert CAT_NAME_LIKE_KANJI in result.mask_categories
+
+
+def test_unmaskable_only_when_unknown_pattern_remains() -> None:
+    """ルール非該当の「漢字+4桁数字」が残ったときのみ unmaskable=True."""
+    # 漢字+4桁数字混在 + 薬品名でないテキスト → マスクされず unmaskable=True
+    img, boxes = _make_canvas([("特殊コード 9876 案件", (10, 10, 400, 40))])
+    result = mask_image(img, boxes, strict=True)
+    # 漢字部分は name_like_kanji でマスクされるが、9876 はマスクできない
+    # → unmaskable_overall は True になる
+    assert result.unmaskable is True
+
+
+def test_window_titles_works_without_masker(monkeypatch) -> None:
+    """masker module を sys.modules から外しても window_titles の主要 PII は
+    マスクされる（部分インストール時の保険）."""
+    import importlib
+    import sys as _sys
+    # window_titles は既に import 済みだが、_HAS_MASKER=False のフォールバック
+    # 経路を直接シミュレート
+    import window_titles as wt_mod
+    monkeypatch.setattr(wt_mod, "_HAS_MASKER", False)
+    monkeypatch.setattr(wt_mod, "_MASKER_DEFAULT_RULES", [])
+
+    masked, _, cats = wt_mod.mask_window_title("受付 - user@example.com")
+    assert "user@example.com" not in masked
+    assert "email" in cats
+
+    masked2, _, cats2 = wt_mod.mask_window_title("番号 1234-5678-9012")
+    assert "1234-5678-9012" not in masked2
+    assert "my_number" in cats2
+
+    masked3, _, cats3 = wt_mod.mask_window_title("保険者番号12345678")
+    assert "12345678" not in masked3
+    assert "insurance_id" in cats3
 
 
 if __name__ == "__main__":

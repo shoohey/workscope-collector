@@ -50,14 +50,25 @@ logger = logging.getLogger(__name__)
 def bundled_doc_path(name: str) -> Path:
     """同梱ドキュメント (consent_form.html 等) の絶対パスを返す.
 
-    PyInstaller --onefile 実行時は ``sys._MEIPASS`` の展開先、
-    開発時は ``<repo>/docs/`` を参照する。存在チェックは行わない。
+    探索順:
+      1. PyInstaller --onefile 展開先 ``sys._MEIPASS/docs/<name>``
+      2. インストーラがコピーした ``%APPDATA%/WorkScope/docs/<name>``
+      3. リポジトリの ``<repo>/docs/<name>``（開発時）
     """
+    candidates: list[Path] = []
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        # PyInstaller spec の datas で docs/ を同梱する想定
-        return Path(meipass) / "docs" / name
-    return Path(__file__).resolve().parent.parent / "docs" / name
+        candidates.append(Path(meipass) / "docs" / name)
+    candidates.append(app_data_dir() / "docs" / name)
+    candidates.append(Path(__file__).resolve().parent.parent / "docs" / name)
+    for p in candidates:
+        try:
+            if p.exists():
+                return p
+        except OSError:
+            continue
+    # 見つからなくても呼び出し元の "open" にエラーを任せるため最初の候補を返す
+    return candidates[0]
 
 
 # ---- 補助 ---------------------------------------------------------------------

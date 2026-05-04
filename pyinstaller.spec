@@ -1,15 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for WorkScope Collector (Windows, single-file, no console)."""
 
+import glob
+import os
+
 block_cipher = None
+
+# 同梱する HTML ドキュメント（同意書・運用ガイド・データ取扱方針 等）
+# tray.py の bundled_doc_path() が sys._MEIPASS/docs/<name> を参照する
+_doc_files = []
+for _p in glob.glob(os.path.join('docs', '*.html')):
+    _doc_files.append((_p, 'docs'))
 
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
     binaries=[],
-    datas=[
-        # PaddleOCR resources are pulled at runtime; keep spec minimal
-    ],
+    datas=_doc_files,
     hiddenimports=[
         'pystray._win32',
         'PIL._tkinter_finder',

@@ -176,26 +176,29 @@ class WindowTitleTests(unittest.TestCase):
         self.blocked = is_blocklisted
 
     def test_mask_person_name(self) -> None:
-        masked, h = self.mask("処方箋 - 田中太郎様 のレセプト")
-        self.assertIn("[MASKED]", masked)
+        masked, h, cats = self.mask("処方箋 - 田中太郎様 のレセプト")
+        self.assertIn("[MASKED:", masked)
         self.assertNotIn("田中太郎", masked)
         self.assertEqual(len(h), 16)
+        self.assertTrue(any(c.startswith("patient_name") or c == "name_like_kanji" for c in cats))
 
     def test_mask_long_digits(self) -> None:
-        masked, _ = self.mask("患者ID 123456789 入力中")
-        self.assertIn("[MASKED]", masked)
+        # context_keywords を持つルールはタイトル文字列内にキーワードが必要
+        masked, _, _ = self.mask("患者ID 123456789 入力中")
+        self.assertIn("[MASKED:", masked)
         self.assertNotIn("123456789", masked)
 
     def test_mask_birthdate(self) -> None:
-        masked, _ = self.mask("生年月日 1980-04-01 検索")
-        self.assertIn("[MASKED]", masked)
-        masked2, _ = self.mask("昭和55年4月1日 患者")
-        self.assertIn("[MASKED]", masked2)
+        masked, _, _ = self.mask("生年月日 1980-04-01 検索")
+        self.assertIn("[MASKED:", masked)
+        masked2, _, _ = self.mask("昭和55年4月1日 患者")
+        self.assertIn("[MASKED:", masked2)
 
     def test_mask_empty(self) -> None:
-        masked, h = self.mask("")
+        masked, h, cats = self.mask("")
         self.assertEqual(masked, "")
         self.assertEqual(h, "")
+        self.assertEqual(cats, [])
 
     def test_blocklist_process(self) -> None:
         self.assertTrue(self.blocked(
@@ -314,7 +317,7 @@ class CollectorFilterTests(unittest.TestCase):
         assert result is not None
         self.assertEqual(result["event_type"], "window_focus")
         # タイトルがマスクされていること
-        self.assertIn("[MASKED]", result["window"]["title"])
+        self.assertIn("[MASKED:", result["window"]["title"])
         self.assertNotIn("田中太郎", result["window"]["title"])
         self.assertEqual(result["transition_from_app"], "A.exe")
         self.assertGreaterEqual(result["dwell_ms_prev"], 1000)
