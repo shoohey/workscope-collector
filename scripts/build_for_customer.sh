@@ -1,23 +1,26 @@
 #!/usr/bin/env bash
-# 顧客別カスタムEXE生成スクリプト.
+# 顧客別カスタムEXE生成スクリプト (Codex Critical#2 対応版).
 #
 # 使い方:
 #   ./scripts/build_for_customer.sh \
 #     --customer "村上薬局" \
 #     --industry pharmacy \
 #     --endpoint "https://upload.tribe-saas.com/customers/murakami/" \
+#     --api-key "<bearer_api_key>" \
 #     [--output dist/WorkScope_村上薬局_20260505.exe]
 #
 # 動作:
-#   1. profiles/ から指定業界のJSONだけを残し、他を一時退避
-#   2. src/config.py に CUSTOMER_NAME / DEFAULT_PROFILE / UPLOAD_ENDPOINT を埋め込み
-#   3. docs/consent_form.html の {{CUSTOMER_NAME}} を置換
-#   4. PyInstaller でビルド
-#   5. 退避した profiles と置換した config.py を復元
-#   6. dist/ に <customer>_<date>.exe + 同意書PDF + 配布手順書 を出力
+#   1. リポジトリ全体を一時ディレクトリへ rsync (作業ツリー汚染ゼロ)
+#   2. 一時ディレクトリ内で profiles/ を該当業界のみに絞る
+#   3. 一時ディレクトリ内で _build_constants.py を生成（src/config.py には書き込まない）
+#   4. 一時ディレクトリ内で PyInstaller を実行
+#   5. 生成EXEを dist/ にコピー
+#   6. 一時ディレクトリは trap で必ず削除（成功・失敗・割込のいずれでも）
 #
-# このスクリプトは macOS でも実行可能（PyInstallerビルド自体はWindowsで実行する想定。
-# CI: GitHub Actions windows-latest workflow から呼び出される）.
+# 設計判断 (Codex Critical#2 対応):
+#   - リポジトリ作業ツリーを一切変更しない（profiles 退避や config.py書換を廃止）
+#   - 一時ディレクトリは trap EXIT/ERR/INT で必ず cleanup
+#   - 失敗時もリポジトリ汚染なし、APIキーが作業ツリーに残らない
 
 set -euo pipefail
 
@@ -26,20 +29,36 @@ INDUSTRY=""
 ENDPOINT=""
 API_KEY=""
 OUTPUT=""
+WORK_DIR=""
 
 usage() {
     cat <<EOF
-Usage: $0 --customer NAME --industry INDUSTRY [--endpoint URL] [--output PATH]
+Usage: $0 --customer NAME --industry INDUSTRY [--endpoint URL] [--api-key KEY] [--output PATH]
 
 Options:
   --customer NAME      顧客名 (例: "村上薬局")
-  --industry KIND      業界プロファイル (pharmacy|accounting|legal|sales|hr|generic)
+  --industry KIND      業界プロファイル (pharmacy|accounting|legal|sales|hr|generic|...)
   --endpoint URL       データ送信先URL (USB回収のみなら空でOK)
+  --api-key KEY        Bearer認証用APIキー (空でアップロード無効化)
   --output PATH        出力EXEパス (省略時: dist/WorkScope_<customer>_<date>.exe)
   -h, --help           このヘルプを表示
 EOF
     exit 0
 }
+
+cleanup() {
+    local exit_code=$?
+    if [[ -n "$WORK_DIR" ]] && [[ -d "$WORK_DIR" ]]; then
+        echo "[cleanup] removing temp build dir: $WORK_DIR"
+        rm -rf "$WORK_DIR" 2>/dev/null || true
+    fi
+    if [[ $exit_code -ne 0 ]]; then
+        echo "[cleanup] build FAILED (exit=$exit_code). Repository working tree untouched." >&2
+    fi
+    exit $exit_code
+}
+# trap は引数解析より前に登録。シグナル経由の中断でも cleanup が走る
+trap cleanup EXIT INT TERM
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -58,91 +77,136 @@ if [[ -z "$CUSTOMER" ]] || [[ -z "$INDUSTRY" ]]; then
     usage
 fi
 
-# 業界プロファイルの存在確認
-PROFILE_DIR="$(cd "$(dirname "$0")/.." && pwd)/profiles"
-if [[ ! -f "$PROFILE_DIR/$INDUSTRY.json" ]]; then
-    echo "ERROR: profile '$INDUSTRY' not found in $PROFILE_DIR" >&2
-    echo "Available: $(ls "$PROFILE_DIR" | sed 's/\.json//' | tr '\n' ' ')" >&2
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 業界プロファイルの存在確認 (リポジトリ側)
+if [[ ! -f "$REPO_ROOT/profiles/$INDUSTRY.json" ]]; then
+    echo "ERROR: profile '$INDUSTRY' not found in $REPO_ROOT/profiles" >&2
+    echo "Available: $(ls "$REPO_ROOT/profiles" | sed 's/\.json//' | tr '\n' ' ')" >&2
     exit 1
 fi
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATE_STR="$(date +%Y%m%d)"
 if [[ -z "$OUTPUT" ]]; then
     OUTPUT="$REPO_ROOT/dist/WorkScope_${CUSTOMER}_${DATE_STR}.exe"
 fi
 
 echo "=========================================="
-echo "  WorkScope Customer Build"
+echo "  WorkScope Customer Build (isolated)"
 echo "  Customer: $CUSTOMER"
 echo "  Industry: $INDUSTRY"
 echo "  Endpoint: ${ENDPOINT:-<none, USB only>}"
+echo "  API key:  $([ -n "$API_KEY" ] && echo "***set***" || echo "<none>")"
 echo "  Output:   $OUTPUT"
 echo "=========================================="
 
-cd "$REPO_ROOT"
+# --- 1. 一時ビルドディレクトリへリポジトリをコピー ---
+WORK_DIR="$(mktemp -d -t workscope_build_XXXXXX)"
+echo "[1/5] copy repo → $WORK_DIR"
+rsync -a --quiet \
+    --exclude '.git' \
+    --exclude 'node_modules' \
+    --exclude 'build' \
+    --exclude 'dist' \
+    --exclude 'build-artifacts' \
+    --exclude '__pycache__' \
+    --exclude '.pytest_cache' \
+    --exclude '*.pyc' \
+    "$REPO_ROOT/" "$WORK_DIR/"
 
-# --- 1. profiles/ 退避 (該当業界 + base のみ残す) ---
-PROFILE_BACKUP="$(mktemp -d)"
-echo "[1/5] backup profiles to $PROFILE_BACKUP"
-for p in "$PROFILE_DIR"/*.json; do
+# --- 2. profiles を該当業界 + base のみに絞る (一時ディレクトリ内) ---
+echo "[2/5] reduce profiles to {base, $INDUSTRY}"
+for p in "$WORK_DIR/profiles/"*.json; do
     name="$(basename "$p" .json)"
     if [[ "$name" != "$INDUSTRY" ]] && [[ "$name" != "base" ]]; then
-        mv "$p" "$PROFILE_BACKUP/"
+        rm -f "$p"
     fi
 done
 
-# --- 2. src/config.py の埋め込み定数を上書き ---
-CONFIG="$REPO_ROOT/src/config.py"
-CONFIG_BACKUP="$(mktemp)"
-cp "$CONFIG" "$CONFIG_BACKUP"
-echo "[2/5] inject CUSTOMER_NAME / DEFAULT_PROFILE / UPLOAD_ENDPOINT / UPLOAD_API_KEY"
-python3 - <<PY
-import re
-p = "$CONFIG"
-src = open(p, encoding="utf-8").read()
-src = re.sub(r'^DEFAULT_PROFILE = ".*"', 'DEFAULT_PROFILE = "$INDUSTRY"', src, flags=re.M)
-src = re.sub(r'^CUSTOMER_NAME = ".*"', f'CUSTOMER_NAME = "$CUSTOMER"', src, flags=re.M)
-src = re.sub(r'^UPLOAD_ENDPOINT = ".*"', f'UPLOAD_ENDPOINT = "$ENDPOINT"', src, flags=re.M)
-src = re.sub(r'^UPLOAD_API_KEY = ".*"', f'UPLOAD_API_KEY = "$API_KEY"', src, flags=re.M)
-open(p, "w", encoding="utf-8").write(src)
-print("  injected config: industry=$INDUSTRY customer=$CUSTOMER endpoint=$ENDPOINT api_key=" + ("***" if "$API_KEY" else "<none>"))
-PY
+# --- 3. _build_constants.py を生成 (config.py は書き換えない) ---
+echo "[3/5] generate src/_build_constants.py"
+cat > "$WORK_DIR/src/_build_constants.py" <<PYEOF
+# Auto-generated by build_for_customer.sh — DO NOT COMMIT
+# This file is .gitignore'd and only exists in customer-specific builds.
 
-# --- 3. 同意書テンプレート置換 ---
-CONSENT="$REPO_ROOT/docs/consent_form.html"
-CONSENT_BUILD="$REPO_ROOT/docs/consent_form.built.html"
+CUSTOMER_NAME = "$CUSTOMER"
+DEFAULT_PROFILE = "$INDUSTRY"
+UPLOAD_ENDPOINT = "$ENDPOINT"
+UPLOAD_API_KEY = "$API_KEY"
+BUILD_DATE = "$DATE_STR"
+PYEOF
+
+# 既存 config.py に「ビルド時定数があれば優先する」追記
+cat >> "$WORK_DIR/src/config.py" <<'PYEOF'
+
+# v1.0: ビルド時定数の上書き (build_for_customer.sh が生成した
+# _build_constants.py があればそちらの値を優先する)
+try:
+    from _build_constants import (  # type: ignore[import-not-found]
+        CUSTOMER_NAME as _BUILD_CUSTOMER_NAME,
+        DEFAULT_PROFILE as _BUILD_DEFAULT_PROFILE,
+        UPLOAD_ENDPOINT as _BUILD_UPLOAD_ENDPOINT,
+        UPLOAD_API_KEY as _BUILD_UPLOAD_API_KEY,
+    )
+    if _BUILD_CUSTOMER_NAME:
+        CUSTOMER_NAME = _BUILD_CUSTOMER_NAME
+    if _BUILD_DEFAULT_PROFILE:
+        DEFAULT_PROFILE = _BUILD_DEFAULT_PROFILE
+    if _BUILD_UPLOAD_ENDPOINT:
+        UPLOAD_ENDPOINT = _BUILD_UPLOAD_ENDPOINT
+    if _BUILD_UPLOAD_API_KEY:
+        UPLOAD_API_KEY = _BUILD_UPLOAD_API_KEY
+except ImportError:
+    # 開発環境・テスト環境では _build_constants.py は存在しない
+    pass
+PYEOF
+
+# --- 4. 同意書テンプレート置換 ---
+CONSENT="$WORK_DIR/docs/consent_form.html"
 if [[ -f "$CONSENT" ]]; then
-    echo "[3/5] render consent_form.html with customer name"
-    sed -e "s|{{CUSTOMER_NAME}}|$CUSTOMER|g" \
+    echo "[4/5] render consent_form.html with customer name + endpoint"
+    sed -i.bak \
+        -e "s|{{CUSTOMER_NAME}}|$CUSTOMER|g" \
         -e "s|{{ENDPOINT}}|${ENDPOINT:-（USB回収）}|g" \
         -e "s|{{BUILD_DATE}}|$DATE_STR|g" \
-        "$CONSENT" > "$CONSENT_BUILD"
+        "$CONSENT"
+    rm -f "$CONSENT.bak"
+else
+    echo "[4/5] WARN: consent_form.html not found, skipping render"
 fi
 
-# --- 4. PyInstaller build ---
-echo "[4/5] PyInstaller build (this takes a few minutes)..."
+# --- 5. PyInstaller build ---
+echo "[5/5] PyInstaller build (this takes a few minutes)..."
 mkdir -p "$REPO_ROOT/dist"
 if command -v pyinstaller >/dev/null 2>&1; then
-    pyinstaller --clean --distpath "$(dirname "$OUTPUT")" \
-                --workpath "$REPO_ROOT/build" \
-                --specpath "$REPO_ROOT" \
-                --name "$(basename "$OUTPUT" .exe)" \
-                "$REPO_ROOT/pyinstaller.spec" 2>&1 | tail -20
+    (
+        cd "$WORK_DIR"
+        pyinstaller --clean --noconfirm \
+                    --distpath "$WORK_DIR/dist" \
+                    --workpath "$WORK_DIR/build" \
+                    --name "$(basename "$OUTPUT" .exe)" \
+                    "$WORK_DIR/pyinstaller.spec" 2>&1 | tail -20
+    )
+    # 生成されたEXEを最終出力先へコピー
+    BUILT_EXE="$WORK_DIR/dist/$(basename "$OUTPUT" .exe).exe"
+    if [[ ! -f "$BUILT_EXE" ]]; then
+        # macOS等、拡張子無しのバイナリの場合
+        BUILT_EXE="$WORK_DIR/dist/$(basename "$OUTPUT" .exe)"
+    fi
+    if [[ -f "$BUILT_EXE" ]]; then
+        cp "$BUILT_EXE" "$OUTPUT"
+        echo "[5/5] copied built EXE → $OUTPUT"
+    else
+        echo "[5/5] WARN: PyInstaller did not produce expected EXE in $WORK_DIR/dist/"
+    fi
 else
-    echo "  WARNING: pyinstaller not installed; skipping actual build (CI/Windows env required)"
+    echo "[5/5] WARN: pyinstaller not installed; skipping actual build (CI/Windows env required)"
 fi
-
-# --- 5. 復元 ---
-echo "[5/5] restore profiles and config.py"
-mv "$PROFILE_BACKUP"/*.json "$PROFILE_DIR/" 2>/dev/null || true
-rmdir "$PROFILE_BACKUP" 2>/dev/null || true
-mv "$CONFIG_BACKUP" "$CONFIG"
-[[ -f "$CONSENT_BUILD" ]] && rm "$CONSENT_BUILD"
 
 echo ""
 echo "=========================================="
-echo "  Build done."
+echo "  Build done. Repository working tree is untouched."
 echo "  Output: $OUTPUT"
 echo "  Customer: $CUSTOMER ($INDUSTRY profile)"
 echo "=========================================="
+# trap cleanup will fire on EXIT and remove $WORK_DIR
