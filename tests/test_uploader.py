@@ -119,14 +119,15 @@ def test_upload_once_returns_false_when_not_configured(isolated):
 
 
 def test_upload_once_no_pending_returns_true(isolated):
-    """未送信ファイルが無ければ何もしないが成功扱い."""
+    """未送信ファイルが無ければ何もしないが成功扱い (allowlist済みホスト使用)."""
     from uploader import upload_once  # type: ignore
-    # upload_once は endpoint 通信前に pending チェックしているので、
-    # endpoint に到達しないことを利用 (ここでは endpoint 設定されたが pendingが0)
     events_dir = isolated / "WorkScope" / "data" / "events"
     events_dir.mkdir(parents=True, exist_ok=True)
-    # JSONL がない状態で呼ぶ
-    result = upload_once("https://example.com/uploads", "fake-api-key", max_retry=1)
+    # allowlist 通過するホストを使用
+    result = upload_once(
+        "https://upload.tribe-saas.com/customers/test/",
+        "fake-api-key", max_retry=1,
+    )
     assert result is True
 
 
@@ -167,6 +168,143 @@ def test_archive_only_contains_listed_files(isolated):
     assert "DO_NOT_INCLUDE" not in contents
     # not_listed のファイル名が zip 内に存在しない
     assert not any("2026-05-99" in n for n in zf.namelist())
+
+
+# ============================================================================
+# Codex High#4: endpoint allowlist
+# ============================================================================
+
+def test_endpoint_allowlist_accepts_tribe_domain(isolated):
+    from uploader import is_endpoint_allowed  # type: ignore
+    ok, _ = is_endpoint_allowed("https://upload.tribe-saas.com/customers/x/")
+    assert ok is True
+
+
+def test_endpoint_allowlist_accepts_dashboard(isolated):
+    from uploader import is_endpoint_allowed  # type: ignore
+    ok, _ = is_endpoint_allowed("https://workscope-dashboard.vercel.app/api/workscope/uploads")
+    assert ok is True
+
+
+def test_endpoint_allowlist_rejects_unknown_host(isolated):
+    from uploader import is_endpoint_allowed  # type: ignore
+    ok, reason = is_endpoint_allowed("https://evil.example.com/upload")
+    assert ok is False
+    assert "allowlist" in reason
+
+
+def test_endpoint_allowlist_rejects_http(isolated):
+    from uploader import is_endpoint_allowed  # type: ignore
+    ok, reason = is_endpoint_allowed("http://upload.tribe-saas.com/upload")
+    assert ok is False
+    assert "https" in reason.lower()
+
+
+def test_endpoint_allowlist_rejects_localhost(isolated):
+    """ローカル/メタデータ系URLへの誤送信を防ぐ."""
+    from uploader import is_endpoint_allowed  # type: ignore
+    for url in ("https://localhost/x", "https://127.0.0.1/x",
+                "https://169.254.169.254/latest/meta-data/", "https://metadata.google.internal/x"):
+        ok, _ = is_endpoint_allowed(url)
+        assert ok is False, f"should reject {url}"
+
+
+def test_endpoint_allowlist_dev_bypass(isolated, monkeypatch):
+    from uploader import is_endpoint_allowed  # type: ignore
+    monkeypatch.setenv("WORKSCOPE_ALLOW_ANY_ENDPOINT", "1")
+    ok, reason = is_endpoint_allowed("https://example.com/x")
+    assert ok is True
+    assert "dev-bypass" in reason
+
+
+def test_upload_once_blocks_disallowed_endpoint(isolated, tmp_path):
+    """allowlist外のエンドポイントには絶対送信しない (PII漏洩防止の最終ゲート)."""
+    from uploader import upload_once  # type: ignore
+
+    events_dir = isolated / "WorkScope" / "data" / "events"
+    events_dir.mkdir(parents=True, exist_ok=True)
+    (events_dir / "2026-04-30.jsonl").write_text('{"event_seq":1}\n', encoding="utf-8")
+
+    result = upload_once("https://attacker.example/x", "key", max_retry=1)
+    assert result is False
+
+
+# ============================================================================
+# Codex High#5: 送信前 PII 再スキャン
+# ============================================================================
+
+def test_scan_jsonl_detects_email(isolated):
+    from uploader import scan_jsonl_for_pii_leakage  # type: ignore
+    p = isolated / "events.jsonl"
+    p.write_text('{"text": "send to user@example.com"}\n', encoding="utf-8")
+    leaks = scan_jsonl_for_pii_leakage(p)
+    assert len(leaks) >= 1
+
+
+def test_scan_jsonl_detects_phone(isolated):
+    from uploader import scan_jsonl_for_pii_leakage  # type: ignore
+    p = isolated / "events.jsonl"
+    p.write_text('{"text": "tel: 090-1234-5678"}\n', encoding="utf-8")
+    leaks = scan_jsonl_for_pii_leakage(p)
+    assert len(leaks) >= 1
+
+
+def test_scan_jsonl_detects_my_number(isolated):
+    from uploader import scan_jsonl_for_pii_leakage  # type: ignore
+    p = isolated / "events.jsonl"
+    p.write_text('{"x": "1234-5678-9012"}\n', encoding="utf-8")
+    leaks = scan_jsonl_for_pii_leakage(p)
+    assert len(leaks) >= 1
+
+
+def test_scan_jsonl_ignores_already_masked(isolated):
+    """[MASKED:email] のような正規マスク後の表現は誤検出しない."""
+    from uploader import scan_jsonl_for_pii_leakage  # type: ignore
+    p = isolated / "events.jsonl"
+    p.write_text('{"text": "[MASKED:email]"}\n', encoding="utf-8")
+    leaks = scan_jsonl_for_pii_leakage(p)
+    assert leaks == []
+
+
+def test_scan_jsonl_clean_returns_empty(isolated):
+    from uploader import scan_jsonl_for_pii_leakage  # type: ignore
+    p = isolated / "events.jsonl"
+    p.write_text('{"window": "処方入力", "ts": "2026-05-05T10:00:00Z"}\n', encoding="utf-8")
+    leaks = scan_jsonl_for_pii_leakage(p)
+    assert leaks == []
+
+
+def test_upload_once_blocks_when_pii_detected(isolated):
+    """送信予定ファイルにPII残存が検出されたら送信中止."""
+    from uploader import upload_once  # type: ignore
+
+    events_dir = isolated / "WorkScope" / "data" / "events"
+    events_dir.mkdir(parents=True, exist_ok=True)
+    (events_dir / "2026-04-30.jsonl").write_text(
+        '{"text":"漏れたメール user@example.com"}\n',
+        encoding="utf-8",
+    )
+    result = upload_once(
+        "https://upload.tribe-saas.com/customers/x/",
+        "key", max_retry=1,
+    )
+    # PIIが検出されたので送信されない
+    assert result is False
+
+
+def test_upload_once_proceeds_when_pii_scan_disabled(isolated, monkeypatch):
+    """pii_scan=False で disabling した場合は通る (テスト用、本番ではFalseにしない)."""
+    from uploader import upload_once  # type: ignore
+
+    events_dir = isolated / "WorkScope" / "data" / "events"
+    events_dir.mkdir(parents=True, exist_ok=True)
+    # 空ファイル（実通信は発生しないがpii_scan=Falseが効くか確認）
+    result = upload_once(
+        "https://upload.tribe-saas.com/customers/x/",
+        "key", max_retry=1, pii_scan=False,
+    )
+    # pending無しなのでTrue
+    assert result is True
 
 
 if __name__ == "__main__":
