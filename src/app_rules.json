@@ -1,0 +1,125 @@
+{
+  "version": "1.0",
+  "description": "アプリ自動分類ルールDB. process_name/process_path/window_title から AppCategory を判定する.",
+  "categories": {
+    "saas_web": {
+      "label": "SaaS-Web",
+      "rpa_target": "selenium",
+      "rules": [
+        {"type": "title_substring", "value": "kintone.cybozu.com"},
+        {"type": "title_substring", "value": ".freee.co.jp"},
+        {"type": "title_substring", "value": ".salesforce.com"},
+        {"type": "title_substring", "value": "lightning.force.com"},
+        {"type": "title_substring", "value": "notion.so"},
+        {"type": "title_substring", "value": ".hubspot.com"},
+        {"type": "title_substring", "value": ".intercom.com"},
+        {"type": "title_substring", "value": "atlassian.net"},
+        {"type": "title_substring", "value": ".monday.com"},
+        {"type": "title_substring", "value": ".asana.com"},
+        {"type": "title_substring", "value": ".trello.com"},
+        {"type": "title_substring", "value": "docs.google.com"},
+        {"type": "title_substring", "value": "sheets.google.com"},
+        {"type": "title_substring", "value": "drive.google.com"}
+      ]
+    },
+    "saas_desktop": {
+      "label": "SaaS-Desktop",
+      "rpa_target": "pad",
+      "rules": [
+        {"type": "process_name", "value": "Teams.exe"},
+        {"type": "process_name", "value": "ms-teams.exe"},
+        {"type": "process_name", "value": "Slack.exe"},
+        {"type": "process_name", "value": "Zoom.exe"},
+        {"type": "process_name", "value": "Discord.exe"},
+        {"type": "process_name", "value": "Notion.exe"}
+      ]
+    },
+    "erp": {
+      "label": "ERP/基幹システム",
+      "rpa_target": "pywinauto",
+      "rules": [
+        {"type": "process_name_substring", "value": "SAP"},
+        {"type": "process_name_substring", "value": "saplogon"},
+        {"type": "process_name_substring", "value": "OBIC7"},
+        {"type": "process_name_substring", "value": "yayoi"},
+        {"type": "process_name_substring", "value": "弥生"},
+        {"type": "title_substring", "value": "SAP GUI"},
+        {"type": "title_substring", "value": "給与奉行"},
+        {"type": "title_substring", "value": "商奉行"}
+      ]
+    },
+    "industry_medical": {
+      "label": "業界アプリ-医療",
+      "rpa_target": "pywinauto",
+      "rules": [
+        {"type": "process_name_substring", "value": "WeMex"},
+        {"type": "process_name_substring", "value": "Sigma"},
+        {"type": "process_name_substring", "value": "EM_System"},
+        {"type": "process_name_substring", "value": "ReceptyNEXT"},
+        {"type": "process_name_substring", "value": "Hibridge"},
+        {"type": "process_name_substring", "value": "Moinet"},
+        {"type": "process_name_substring", "value": "Unike"},
+        {"type": "process_name_substring", "value": "Receipt"},
+        {"type": "title_substring", "value": "レセプト"},
+        {"type": "title_substring", "value": "電子カルテ"},
+        {"type": "title_substring", "value": "調剤録"},
+        {"type": "title_substring", "value": "処方せん入力"}
+      ]
+    },
+    "industry_accounting": {
+      "label": "業界アプリ-会計",
+      "rpa_target": "pad",
+      "rules": [
+        {"type": "title_substring", "value": "freee"},
+        {"type": "title_substring", "value": "マネーフォワード"},
+        {"type": "title_substring", "value": "MFクラウド"},
+        {"type": "process_name_substring", "value": "yayoi_kaikei"},
+        {"type": "title_substring", "value": "弥生会計"},
+        {"type": "title_substring", "value": "勘定奉行"}
+      ]
+    },
+    "office": {
+      "label": "Office",
+      "rpa_target": "pad",
+      "rules": [
+        {"type": "process_name", "value": "EXCEL.EXE"},
+        {"type": "process_name", "value": "WINWORD.EXE"},
+        {"type": "process_name", "value": "POWERPNT.EXE"},
+        {"type": "process_name", "value": "OUTLOOK.EXE"},
+        {"type": "process_name", "value": "ONENOTE.EXE"},
+        {"type": "process_name", "value": "MSACCESS.EXE"},
+        {"type": "process_name", "value": "Acrobat.exe"},
+        {"type": "process_name", "value": "AcroRd32.exe"}
+      ]
+    },
+    "browser": {
+      "label": "Browser",
+      "rpa_target": "selenium",
+      "rules": [
+        {"type": "process_name", "value": "chrome.exe"},
+        {"type": "process_name", "value": "msedge.exe"},
+        {"type": "process_name", "value": "firefox.exe"},
+        {"type": "process_name", "value": "brave.exe"},
+        {"type": "process_name", "value": "Safari"}
+      ]
+    },
+    "dev": {
+      "label": "開発ツール",
+      "rpa_target": "none",
+      "rules": [
+        {"type": "process_name", "value": "Code.exe"},
+        {"type": "process_name", "value": "code"},
+        {"type": "process_name", "value": "idea64.exe"},
+        {"type": "process_name", "value": "pycharm64.exe"},
+        {"type": "process_name", "value": "WebStorm64.exe"},
+        {"type": "process_name", "value": "WindowsTerminal.exe"},
+        {"type": "process_name", "value": "powershell.exe"},
+        {"type": "process_name", "value": "cmd.exe"},
+        {"type": "process_name", "value": "wt.exe"},
+        {"type": "process_name", "value": "Cursor.exe"}
+      ]
+    }
+  },
+  "default_category": "other",
+  "default_rpa_target": "computer_use"
+}
