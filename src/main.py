@@ -339,9 +339,9 @@ def main() -> int:
             logger.exception("UploadScheduler start failed; continuing in USB mode")
             upload_sched = None
 
-    # Tray (メインスレッド)
+    # Tray (メインスレッド) - upload_scheduler を渡してメニューから手動送信可能に
     from tray import Tray  # 遅延 import: PIL 依存で初期化が重い
-    tray = Tray(collector=collector, config=config)
+    tray = Tray(collector=collector, config=config, upload_scheduler=upload_sched)
 
     # シグナルハンドラ
     def _shutdown(signum: int, _frame: Any) -> None:
