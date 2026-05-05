@@ -1,10 +1,11 @@
 # CircleCI: WorkScope Collector の Windows EXE ビルド
-# GitHub Actions が user-level disabled / Azure 認証待ちの間の
-# 第三のフォールバック CI。
+# GitHub Actions が user-level disabled / Azure 認証待ちの間のフォールバック CI。
 #
-# - CircleCI の Free Plan は public repo で Windows medium executor を使える
-# - GitHub OAuth で連携。GitHub Actions の制限とは独立に動作する
-# - Windows Server 2022 image には Python 3.11 と PowerShell が同梱
+# 注意:
+#   - win/server-2022 image のデフォルト Python は 3.13 系で
+#     Pillow 10.2 / paddle 2.6 等のホイールが無くビルドが失敗する。
+#   - 各 Python ステップの先頭で PATH に C:\Python311 を前置することで
+#     Python 3.11 を明示的に使う。
 
 version: 2.1
 
@@ -20,59 +21,93 @@ jobs:
       - checkout
 
       - run:
-          name: Show environment
+          name: Install Python 3.11 via choco
+          shell: powershell.exe
           command: |
+            choco install -y python311 --version=3.11.9 --no-progress
+            # 後続ステップでも参照できるよう Machine PATH にも追加
+            $py = "C:\Python311"
+            $pyScripts = "C:\Python311\Scripts"
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            [Environment]::SetEnvironmentVariable(
+              "Path",
+              "$py;$pyScripts;$machinePath",
+              "Machine"
+            )
+            $env:Path = "$py;$pyScripts;" + $env:Path
+            & "$py\python.exe" --version
+
+      - run:
+          name: Verify Python 3.11 is the active interpreter
+          shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
+            Get-Command python | Select-Object Source
+            python --version
+            python -c "import sys; assert sys.version_info[:2] == (3, 11), f'Expected 3.11, got {sys.version_info[:2]}'; print('Python 3.11 OK')"
+            pip --version
+
+      - run:
+          name: Show environment
+          shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
             python --version
             pip --version
             Get-Location
             Get-ChildItem
-          shell: powershell.exe
 
       - run:
           name: Upgrade pip
-          command: |
-            python -m pip install --upgrade pip wheel setuptools
           shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
+            python -m pip install --upgrade pip wheel setuptools
 
       - restore_cache:
           keys:
-            - pip-cache-v1-{{ checksum "requirements.txt" }}
-            - pip-cache-v1-
+            - pip-cache-v2-py311-{{ checksum "requirements.txt" }}
+            - pip-cache-v2-py311-
 
       - run:
           name: Install dependencies
-          command: |
-            pip install -r requirements.txt
           shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
+            pip install -r requirements.txt
 
       - save_cache:
-          key: pip-cache-v1-{{ checksum "requirements.txt" }}
+          key: pip-cache-v2-py311-{{ checksum "requirements.txt" }}
           paths:
             - C:\Users\circleci\AppData\Local\pip\Cache
 
       - run:
           name: Show installed packages
-          command: pip list
           shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
+            pip list
 
       - run:
           name: Build EXE with PyInstaller
-          command: |
-            pyinstaller pyinstaller.spec --noconfirm --clean
           shell: powershell.exe
+          command: |
+            $env:Path = "C:\Python311;C:\Python311\Scripts;" + $env:Path
+            pyinstaller pyinstaller.spec --noconfirm --clean
 
       - run:
           name: Verify build artifact
+          shell: powershell.exe
           command: |
             if (-Not (Test-Path "dist/WorkScope.exe")) {
               Write-Error "dist/WorkScope.exe was not produced by PyInstaller"
               exit 1
             }
             Get-Item dist/WorkScope.exe | Format-List Name, Length, LastWriteTime
-          shell: powershell.exe
 
       - run:
           name: Stage release files
+          shell: powershell.exe
           command: |
             $stage = "release-stage"
             New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -93,25 +128,20 @@ jobs:
             }
             Write-Host "=== Staged files ==="
             Get-ChildItem $stage | Format-Table Name, Length
-          shell: powershell.exe
 
       - run:
           name: Create ZIP archive
+          shell: powershell.exe
           command: |
             $sha = $env:CIRCLE_SHA1.Substring(0, 7)
             $zipName = "workscope-collector-windows-$sha.zip"
             Compress-Archive -Path "release-stage/*" -DestinationPath $zipName -Force
             Write-Host "Created: $zipName"
             Get-Item $zipName | Format-List Name, Length
-            "ARTIFACT_ZIP=$zipName" | Out-File -Append -FilePath $env:BASH_ENV -Encoding ASCII -ErrorAction SilentlyContinue
-            # CircleCI の artifact store は固定パスなので環境変数経由ではなく
-            # 直接ファイルパスを store_artifacts に渡す
-          shell: powershell.exe
 
       - store_artifacts:
           path: .
           destination: build-output
-          # ZIP がワーキングディレクトリにあるので そこから artifact ストアへ
 
 workflows:
   version: 2
