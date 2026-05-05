@@ -1,0 +1,46 @@
+{
+  "name": "medical_dental",
+  "extends": "base",
+  "version": "1.0",
+  "description": "歯科クリニック・歯科医院向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "patient_id_dental",
+      "pattern": "\\d{4,}",
+      "category": "patient_id",
+      "context_keywords": ["患者ID", "カルテNo", "受付番号", "診察券番号"],
+      "priority": 100
+    },
+    {
+      "name": "insurance_8digits",
+      "pattern": "(?<!\\d)\\d{8}(?!\\d)",
+      "category": "insurance_id",
+      "context_keywords": ["保険者番号", "保険番号", "保険者"],
+      "priority": 110
+    },
+    {
+      "name": "insurance_card_no",
+      "pattern": "\\d{6,10}[-－]\\d{1,4}",
+      "category": "insurance_card_no",
+      "context_keywords": [],
+      "priority": 111
+    },
+    {
+      "name": "tooth_chart_id",
+      "pattern": "\\d{2,3}号",
+      "category": "tooth_position",
+      "context_keywords": ["歯式", "部位", "歯番"],
+      "priority": 120
+    }
+  ],
+  "whitelist": {
+    "dental_terms": [
+      "う蝕", "歯周", "抜歯", "充填", "義歯", "インプラント",
+      "ブリッジ", "歯石除去", "スケーリング", "クラウン",
+      "矯正", "ホワイトニング", "予防", "メンテナンス"
+    ],
+    "common_drug_names": [
+      "アモキシシリン", "セフカペン", "ロキソニン", "カロナール"
+    ]
+  }
+}

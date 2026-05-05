@@ -1,0 +1,51 @@
+{
+  "name": "manufacturing",
+  "extends": "base",
+  "version": "1.0",
+  "description": "製造業・町工場向けマスキングプロファイル（取引先・図面番号・型番）",
+  "rules": [
+    {
+      "name": "company_with_prefix",
+      "pattern": "(?:株式会社|有限会社|合同会社)[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}",
+      "category": "customer_name",
+      "context_keywords": [],
+      "priority": 100
+    },
+    {
+      "name": "drawing_number",
+      "pattern": "[A-Z0-9]{2,5}-\\d{3,8}(?:-\\d{1,3})?",
+      "category": "drawing_id",
+      "context_keywords": ["図面番号", "図番", "図面No", "DWG"],
+      "priority": 110
+    },
+    {
+      "name": "part_number",
+      "pattern": "[A-Z0-9]{4,12}",
+      "category": "part_number",
+      "context_keywords": ["品番", "型番", "部品番号"],
+      "priority": 120
+    },
+    {
+      "name": "lot_number",
+      "pattern": "\\d{6,12}",
+      "category": "lot_number",
+      "context_keywords": ["ロット番号", "LOT", "ロットNo"],
+      "priority": 130
+    },
+    {
+      "name": "unit_price",
+      "pattern": "[\\d,]+\\s?(?:円|円/個)",
+      "category": "unit_price",
+      "context_keywords": ["単価", "原価", "見積単価", "売価"],
+      "priority": 140
+    }
+  ],
+  "whitelist": {
+    "manufacturing_terms": [
+      "受注", "発注", "出荷", "在庫", "仕掛", "完成品",
+      "切削加工", "プレス加工", "板金", "溶接", "塗装",
+      "検査", "出荷検査", "QC", "品質保証",
+      "MRP", "BOM", "工程管理", "原価管理"
+    ]
+  }
+}

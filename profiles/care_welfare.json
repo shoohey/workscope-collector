@@ -1,0 +1,43 @@
+{
+  "name": "care_welfare",
+  "extends": "base",
+  "version": "1.0",
+  "description": "介護・福祉・デイサービス・訪問介護向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "user_id",
+      "pattern": "\\d{4,}",
+      "category": "user_id",
+      "context_keywords": ["利用者ID", "利用者番号", "ご利用者", "被保険者番号"],
+      "priority": 100
+    },
+    {
+      "name": "care_insurance_id",
+      "pattern": "(?<!\\d)\\d{10}(?!\\d)",
+      "category": "care_insurance_id",
+      "context_keywords": ["介護保険", "被保険者番号"],
+      "priority": 110
+    },
+    {
+      "name": "care_level",
+      "pattern": "要(?:支援|介護)\\s?[1-5]",
+      "category": "care_level",
+      "context_keywords": [],
+      "priority": 120
+    },
+    {
+      "name": "facility_id",
+      "pattern": "\\d{10}",
+      "category": "facility_id",
+      "context_keywords": ["事業所番号", "施設番号"],
+      "priority": 130
+    }
+  ],
+  "whitelist": {
+    "care_terms": [
+      "ケアプラン", "サービス担当者会議", "アセスメント",
+      "モニタリング", "認定調査", "短期入所", "通所介護",
+      "訪問介護", "訪問看護", "居宅介護", "施設介護"
+    ]
+  }
+}

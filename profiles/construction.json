@@ -1,0 +1,44 @@
+{
+  "name": "construction",
+  "extends": "base",
+  "version": "1.0",
+  "description": "建設・工務店・リフォーム会社向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "company_with_prefix",
+      "pattern": "(?:株式会社|有限会社|合同会社)[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}",
+      "category": "client_name",
+      "context_keywords": [],
+      "priority": 100
+    },
+    {
+      "name": "project_id",
+      "pattern": "\\d{4,}",
+      "category": "project_id",
+      "context_keywords": ["案件番号", "現場番号", "工事番号", "見積番号"],
+      "priority": 110
+    },
+    {
+      "name": "construction_amount",
+      "pattern": "[\\d,]+\\s?(?:円|万円|億円)",
+      "category": "construction_amount",
+      "context_keywords": ["請負金額", "見積金額", "工事費", "受注額", "原価"],
+      "priority": 120
+    },
+    {
+      "name": "license_number",
+      "pattern": "(?:国土交通大臣|[都道府県]知事)許可\\s?\\(.*?\\)\\s?第\\s?\\d{4,7}\\s?号",
+      "category": "license_id",
+      "context_keywords": [],
+      "priority": 130
+    }
+  ],
+  "whitelist": {
+    "construction_terms": [
+      "見積書", "請求書", "工程表", "施工計画", "施工管理",
+      "RC造", "S造", "木造", "鉄骨造", "基礎工事",
+      "外装工事", "内装工事", "設備工事", "電気工事",
+      "解体工事", "土工事", "コンクリート", "型枠"
+    ]
+  }
+}

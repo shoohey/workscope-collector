@@ -4,9 +4,9 @@
 
 | Check | Status | Critical | Detail |
 |---|---|---|---|
-| pytest_all | ✅ | yes | 234 passed in 3.24s |
-| pii_safety_tests | ✅ | yes | ============================== 6 passed in 1.29s =============================== |
-| profiles_valid | ✅ | yes | 7 profiles validated |
+| pytest_all | ✅ | yes | 320 passed in 5.65s |
+| pii_safety_tests | ✅ | yes | ============================== 6 passed in 0.99s =============================== |
+| profiles_valid | ✅ | yes | 12 profiles validated |
 | required_files | ✅ | yes | all 16 files present |
 | app_rules | ✅ | yes | 8 categories: ['saas_web', 'saas_desktop', 'erp', 'industry_medical', 'industry_accounting', 'office', 'browser', 'dev'] |
 | config_constants | ✅ | no | constants present |
@@ -15,10 +15,15 @@
 ### profiles_valid details
 - accounting: rules=17, whitelist_keys=['common_terms']
 - base: rules=11, whitelist_keys=[]
+- care_welfare: rules=15, whitelist_keys=['care_terms']
+- construction: rules=15, whitelist_keys=['construction_terms']
 - generic: rules=13, whitelist_keys=[]
 - hr: rules=16, whitelist_keys=['common_terms']
 - legal: rules=17, whitelist_keys=['legal_terms']
+- manufacturing: rules=16, whitelist_keys=['manufacturing_terms']
+- medical_dental: rules=15, whitelist_keys=['dental_terms', 'common_drug_names']
 - pharmacy: rules=14, whitelist_keys=['drug_names']
+- real_estate: rules=16, whitelist_keys=['real_estate_terms']
 - sales: rules=16, whitelist_keys=['industry_terms']
 
 ### config_constants details
