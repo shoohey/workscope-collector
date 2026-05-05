@@ -1,0 +1,105 @@
+# Azure Pipelines: WorkScope Collector の Windows EXE ビルド
+# GitHub Actions が user-level disabled の暫定回避策。
+# Microsoft-hosted Windows runner (windows-latest) を使う。
+
+trigger:
+  branches:
+    include:
+      - main
+  tags:
+    include:
+      - v*
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  PYTHON_VERSION: '3.11'
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(PYTHON_VERSION)'
+      architecture: 'x64'
+    displayName: 'Use Python $(PYTHON_VERSION)'
+
+  - powershell: |
+      python --version
+      pip --version
+      Get-Location
+      Get-ChildItem
+    displayName: 'Show environment'
+
+  - task: Cache@2
+    inputs:
+      key: 'pip | "$(Agent.OS)" | requirements.txt'
+      restoreKeys: |
+        pip | "$(Agent.OS)"
+      path: $(Pipeline.Workspace)/.pip
+    displayName: 'Cache pip'
+
+  - task: Cache@2
+    inputs:
+      key: 'paddleocr | "$(Agent.OS)" | v1'
+      restoreKeys: |
+        paddleocr | "$(Agent.OS)"
+      path: $(USERPROFILE)/.paddleocr
+    displayName: 'Cache PaddleOCR models'
+
+  - powershell: python -m pip install --upgrade pip wheel setuptools
+    displayName: 'Upgrade pip'
+
+  - powershell: pip install -r requirements.txt
+    displayName: 'Install dependencies'
+
+  - powershell: pip list
+    displayName: 'Show installed packages'
+
+  - powershell: pyinstaller pyinstaller.spec --noconfirm --clean
+    displayName: 'Build EXE with PyInstaller'
+
+  - powershell: |
+      if (-Not (Test-Path "dist/WorkScope.exe")) {
+        Write-Error "dist/WorkScope.exe was not produced by PyInstaller"
+        exit 1
+      }
+      Get-Item dist/WorkScope.exe | Format-List Name, Length, LastWriteTime
+    displayName: 'Verify build artifact'
+
+  - powershell: |
+      $stage = "release-stage"
+      New-Item -ItemType Directory -Force -Path $stage | Out-Null
+      Copy-Item dist/WorkScope.exe -Destination $stage/
+      if (Test-Path installer) {
+        Get-ChildItem installer -Filter *.bat | Copy-Item -Destination $stage/
+        if (Test-Path installer/README_install.txt) {
+          Copy-Item installer/README_install.txt -Destination $stage/
+        }
+      }
+      if (Test-Path docs) {
+        $htmls = Get-ChildItem docs -Filter *.html -ErrorAction SilentlyContinue
+        if ($htmls) {
+          $htmls | Copy-Item -Destination $stage/
+        } else {
+          Write-Host "No HTML files in docs/, skipping"
+        }
+      }
+      Write-Host "=== Staged files ==="
+      Get-ChildItem $stage | Format-Table Name, Length
+    displayName: 'Stage release files'
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: 'release-stage'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/workscope-collector-windows.zip'
+      replaceExistingArchive: true
+    displayName: 'Create ZIP archive'
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/workscope-collector-windows.zip'
+      artifact: 'workscope-collector-windows'
+      publishLocation: 'pipeline'
+    displayName: 'Publish artifact'
