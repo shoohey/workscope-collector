@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>業務マップ - サンプル薬局</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: #ffffff;
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #1a1a2e;
+  line-height: 1.7;
+  font-size: 14px;
+}
+.page {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 32px 40px;
+}
+h1 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+  color: #1e3a5f;
+  margin-bottom: 8px;
+}
+h2 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: #1e3a5f;
+  margin-top: 36px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+h3 { font-size: 16px; color: #1e3a5f; margin-top: 18px; margin-bottom: 8px; }
+.lead { color: #4a5568; margin-bottom: 24px; }
+.label { font-size: 11px; color: #4a5568; letter-spacing: 0.1em; text-transform: uppercase; }
+.kpi-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.kpi {
+  flex: 1; min-width: 200px;
+  background: #f5f7fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+}
+.kpi .num {
+  font-family: 'Inter', sans-serif;
+  font-size: 36px;
+  font-weight: 800;
+  color: #1e3a5f;
+}
+.kpi .unit { font-size: 14px; color: #4a5568; margin-left: 6px; }
+.kpi .lab { font-size: 12px; color: #4a5568; margin-bottom: 4px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+th { background: #f5f7fa; color: #1e3a5f; font-weight: 700; }
+.score-bar {
+  background: #1e3a5f;
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 700;
+}
+.tag-rpa { background: #d4f1d4; color: #276749; }
+.tag-agent { background: #fef0c7; color: #975a16; }
+.tag-human { background: #fed7d7; color: #c53030; }
+.bar-container { background: #f5f7fa; border-radius: 4px; overflow: hidden; }
+.bar { background: #1e3a5f; height: 18px; padding: 0 8px; color: white; font-size: 11px; line-height: 18px; }
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body { font-size: 11px; }
+  .page { margin: 0; padding: 0; }
+}
+</style></head><body><div class="page"><div class="label">業務まるごと可視化AI 納品レポート</div><h1>業務マップ — サンプル薬局</h1><div class="lead">業界プロファイル: <strong>pharmacy</strong> ／ 観測期間: <strong>30日</strong> ／ 生成日時: 2026-05-06 07:59</div><div class="kpi-row"><div class="kpi"><div class="lab">業務単位数</div><div class="num">2<span class="unit">件</span></div></div><div class="kpi"><div class="lab">反復パターン</div><div class="num">13<span class="unit">件</span></div></div><div class="kpi"><div class="lab">月間総作業時間</div><div class="num">0<span class="unit">時間</span></div></div><div class="kpi"><div class="lab">RPA化候補</div><div class="num">13<span class="unit">件</span></div></div><div class="kpi"><div class="lab">月間削減見込</div><div class="num">6<span class="unit">万円</span></div></div></div><h2>アプリ別 時間配分</h2><table><tr><th>アプリ種別</th><th>累積時間</th><th>占有率</th></tr><tr><td>業界アプリ-医療</td><td>9分</td><td><div class="bar-container"><div class="bar" style="width:100%">65.7%</div></div></td></tr><tr><td>Office</td><td>4分</td><td><div class="bar-container"><div class="bar" style="width:52%">34.3%</div></div></td></tr></table><h2>自動化候補 上位10業務</h2><div class="lead">RPA化候補: <strong>13件</strong> / AIエージェント候補: <strong>0件</strong> / 人力継続推奨: <strong>0件</strong></div><table><tr><th>順位</th><th>業務名（操作シーケンス）</th><th>頻度</th><th>月間時間</th><th>月間削減見込</th><th>RPA出口</th><th>分類</th></tr><tr><td>1</td><td>患者検索 → 患者詳細 → 処方入力<div class="score-bar" style="width:100%"></div></td><td>30回</td><td>184分</td><td>¥9,208</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>2</td><td>患者詳細 → 処方入力 → 確認<div class="score-bar" style="width:100%"></div></td><td>30回</td><td>184分</td><td>¥9,208</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>3</td><td>処方入力 → 確認 → 送信完了<div class="score-bar" style="width:100%"></div></td><td>30回</td><td>184分</td><td>¥9,208</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>4</td><td>確認 → 送信完了 → 患者検索<div class="score-bar" style="width:93%"></div></td><td>29回</td><td>178分</td><td>¥8,901</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>5</td><td>送信完了 → 患者検索 → 患者詳細<div class="score-bar" style="width:93%"></div></td><td>29回</td><td>178分</td><td>¥8,901</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>6</td><td>レセプト一覧 → レセプト詳細 → 確認<div class="score-bar" style="width:25%"></div></td><td>15回</td><td>92分</td><td>¥4,604</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>7</td><td>レセプト詳細 → 確認 → レセプト一覧<div class="score-bar" style="width:21%"></div></td><td>14回</td><td>86分</td><td>¥4,297</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>8</td><td>確認 → レセプト一覧 → レセプト詳細<div class="score-bar" style="width:21%"></div></td><td>14回</td><td>86分</td><td>¥4,297</td><td><code>pywinauto</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>9</td><td>受信トレイ → メール作成 → 送信完了<div class="score-bar" style="width:8%"></div></td><td>12回</td><td>38分</td><td>¥1,920</td><td><code>pad</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr><tr><td>10</td><td>メール作成 → 送信完了 → 受信トレイ<div class="score-bar" style="width:7%"></div></td><td>11回</td><td>35分</td><td>¥1,760</td><td><code>pad</code></td><td><span class="tag tag-rpa">RPA向き</span></td></tr></table><h2>検出された全反復パターン</h2><table><tr><th>アプリ種別</th><th>パターン</th><th>頻度</th><th>累積時間</th></tr><tr><td>業界アプリ-医療</td><td>患者検索 → 患者詳細 → 処方入力</td><td>30回</td><td>4時間36分</td></tr><tr><td>業界アプリ-医療</td><td>患者詳細 → 処方入力 → 確認</td><td>30回</td><td>4時間36分</td></tr><tr><td>業界アプリ-医療</td><td>処方入力 → 確認 → 送信完了</td><td>30回</td><td>4時間36分</td></tr><tr><td>業界アプリ-医療</td><td>確認 → 送信完了 → 患者検索</td><td>29回</td><td>4時間27分</td></tr><tr><td>業界アプリ-医療</td><td>送信完了 → 患者検索 → 患者詳細</td><td>29回</td><td>4時間27分</td></tr><tr><td>業界アプリ-医療</td><td>レセプト一覧 → レセプト詳細 → 確認</td><td>15回</td><td>2時間18分</td></tr><tr><td>業界アプリ-医療</td><td>レセプト詳細 → 確認 → レセプト一覧</td><td>14回</td><td>2時間8分</td></tr><tr><td>業界アプリ-医療</td><td>確認 → レセプト一覧 → レセプト詳細</td><td>14回</td><td>2時間8分</td></tr><tr><td>Office</td><td>受信トレイ → メール作成 → 送信完了</td><td>12回</td><td>57分</td></tr><tr><td>Office</td><td>メール作成 → 送信完了 → 受信トレイ</td><td>11回</td><td>52分</td></tr><tr><td>Office</td><td>送信完了 → 受信トレイ → メール作成</td><td>11回</td><td>52分</td></tr><tr><td>Office</td><td>売上集計.xlsx → 在庫表.xlsx → 売上集計.xlsx</td><td>7回</td><td>33分</td></tr><tr><td>Office</td><td>在庫表.xlsx → 売上集計.xlsx → 在庫表.xlsx</td><td>7回</td><td>33分</td></tr></table></div></body></html>
