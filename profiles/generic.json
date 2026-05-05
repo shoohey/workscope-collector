@@ -1,0 +1,23 @@
+{
+  "name": "generic",
+  "extends": "base",
+  "version": "1.0",
+  "description": "業界特化なしの普通の会社向け（オフィス業務全般）",
+  "rules": [
+    {
+      "name": "company_with_prefix",
+      "pattern": "(?:株式会社|有限会社|合同会社)[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}",
+      "category": "company_name",
+      "context_keywords": [],
+      "priority": 100
+    },
+    {
+      "name": "company_name_with_suffix",
+      "pattern": "[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}(?:株式会社|有限会社|合同会社|\\(株\\)|\\(有\\))",
+      "category": "company_name",
+      "context_keywords": [],
+      "priority": 101
+    }
+  ],
+  "whitelist": {}
+}

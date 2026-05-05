@@ -1,0 +1,57 @@
+{
+  "name": "accounting",
+  "extends": "base",
+  "version": "1.0",
+  "description": "会計事務所・税理士事務所・経理部門向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "bank_account_7digits",
+      "pattern": "(?<!\\d)\\d{7}(?!\\d)",
+      "category": "bank_account",
+      "context_keywords": ["口座番号", "普通", "当座", "貯蓄", "口座"],
+      "priority": 100
+    },
+    {
+      "name": "bank_branch_code",
+      "pattern": "(?<!\\d)\\d{3}(?!\\d)",
+      "category": "bank_branch",
+      "context_keywords": ["支店コード", "支店番号", "金融機関コード"],
+      "priority": 101
+    },
+    {
+      "name": "client_company_name",
+      "pattern": "[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}(?:株式会社|有限会社|合同会社|合資会社|合名会社|\\(株\\)|\\(有\\))",
+      "category": "client_name",
+      "context_keywords": [],
+      "priority": 110
+    },
+    {
+      "name": "company_with_prefix",
+      "pattern": "(?:株式会社|有限会社|合同会社)[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}",
+      "category": "client_name",
+      "context_keywords": [],
+      "priority": 111
+    },
+    {
+      "name": "tax_office_number",
+      "pattern": "(?<!\\d)T\\d{13}(?!\\d)",
+      "category": "tax_invoice_id",
+      "context_keywords": [],
+      "priority": 120
+    },
+    {
+      "name": "amount_with_yen",
+      "pattern": "[\\d,]+\\s?円",
+      "category": "amount",
+      "context_keywords": ["売上", "仕入", "経費", "金額", "請求", "支払", "残高"],
+      "priority": 130
+    }
+  ],
+  "whitelist": {
+    "common_terms": [
+      "売上高", "営業利益", "経常利益", "法人税",
+      "消費税", "源泉所得税", "事業税", "住民税",
+      "減価償却", "貸借対照表", "損益計算書"
+    ]
+  }
+}

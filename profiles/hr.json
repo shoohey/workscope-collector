@@ -1,0 +1,49 @@
+{
+  "name": "hr",
+  "extends": "base",
+  "version": "1.0",
+  "description": "人事・労務・給与計算部門向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "employee_id",
+      "pattern": "(?<!\\d)\\d{4,8}(?!\\d)",
+      "category": "employee_id",
+      "context_keywords": ["社員番号", "従業員番号", "社員ID", "従業員ID", "スタッフID", "職員番号"],
+      "priority": 100
+    },
+    {
+      "name": "salary_amount",
+      "pattern": "[\\d,]+\\s?(?:円|万円)",
+      "category": "salary",
+      "context_keywords": ["給与", "基本給", "賞与", "ボーナス", "残業代", "手当", "支給", "控除", "年収", "月収"],
+      "priority": 110
+    },
+    {
+      "name": "evaluation_grade",
+      "pattern": "[SABCDE]評価|評価\\s?[SABCDE]",
+      "category": "evaluation",
+      "context_keywords": ["人事評価", "考課"],
+      "priority": 120
+    },
+    {
+      "name": "health_insurance_id",
+      "pattern": "(?<!\\d)\\d{1,5}-?\\d{1,5}(?!\\d)",
+      "category": "health_insurance",
+      "context_keywords": ["健康保険", "厚生年金", "雇用保険", "労災"],
+      "priority": 130
+    },
+    {
+      "name": "department_name",
+      "pattern": "[一-鿿ぁ-ゟ゠-ヿA-Za-z]{2,15}(?:部|課|チーム|グループ|本部|室)",
+      "category": "department",
+      "context_keywords": [],
+      "priority": 140
+    }
+  ],
+  "whitelist": {
+    "common_terms": [
+      "正社員", "契約社員", "パート", "アルバイト",
+      "業務委託", "派遣社員", "出向", "管理職", "一般職"
+    ]
+  }
+}

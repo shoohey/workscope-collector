@@ -180,7 +180,8 @@ class WindowTitleTests(unittest.TestCase):
         self.assertIn("[MASKED:", masked)
         self.assertNotIn("田中太郎", masked)
         self.assertEqual(len(h), 16)
-        self.assertTrue(any(c.startswith("patient_name") or c == "name_like_kanji" for c in cats))
+        # v1.0汎用化: patient_name → personal_name に統合 (敬称付き氏名は引き続き発火)
+        self.assertTrue(any(c in ("personal_name", "personal_name_kana", "patient_name", "name_like_kanji") for c in cats))
 
     def test_mask_long_digits(self) -> None:
         # context_keywords を持つルールはタイトル文字列内にキーワードが必要

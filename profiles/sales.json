@@ -1,0 +1,49 @@
+{
+  "name": "sales",
+  "extends": "base",
+  "version": "1.0",
+  "description": "営業部門・SFA/CRM向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "company_with_prefix",
+      "pattern": "(?:株式会社|有限会社|合同会社)[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}",
+      "category": "customer_name",
+      "context_keywords": [],
+      "priority": 100
+    },
+    {
+      "name": "customer_company_name",
+      "pattern": "[一-鿿ぁ-ゟ゠-ヿA-Za-z0-9]{2,30}(?:株式会社|有限会社|合同会社|合資会社|合名会社|\\(株\\)|\\(有\\))",
+      "category": "customer_name",
+      "context_keywords": [],
+      "priority": 101
+    },
+    {
+      "name": "deal_amount",
+      "pattern": "[\\d,]+\\s?(?:円|万円|億円)",
+      "category": "deal_amount",
+      "context_keywords": ["商談", "受注", "見積", "契約金額", "予算", "提案金額"],
+      "priority": 110
+    },
+    {
+      "name": "salesforce_id",
+      "pattern": "[0-9a-zA-Z]{15,18}",
+      "category": "sfa_record_id",
+      "context_keywords": ["Lead ID", "Opportunity ID", "Account ID", "Contact ID"],
+      "priority": 120
+    },
+    {
+      "name": "deal_stage",
+      "pattern": "(?:アプローチ|初回訪問|提案中|見積提出|交渉中|受注|失注|保留)",
+      "category": "deal_stage",
+      "context_keywords": ["商談ステージ", "フェーズ"],
+      "priority": 130
+    }
+  ],
+  "whitelist": {
+    "industry_terms": [
+      "新規開拓", "ルート営業", "インサイドセールス",
+      "フィールドセールス", "アウトバウンド", "インバウンド"
+    ]
+  }
+}

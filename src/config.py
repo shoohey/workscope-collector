@@ -15,6 +15,12 @@ from pathlib import Path
 APP_NAME = "WorkScope"
 APP_VERSION = "0.1.0"
 
+# ビルド時埋め込み（顧客別ビルドで scripts/build_for_customer.sh が書き換える）
+# 空文字の場合はデフォルト "pharmacy" にフォールバック（v0.1.0互換）
+DEFAULT_PROFILE = ""
+CUSTOMER_NAME = ""
+UPLOAD_ENDPOINT = ""
+
 
 def app_data_dir() -> Path:
     base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
@@ -71,6 +77,10 @@ class CollectorConfig:
     ocr_max_image_side: int = 1920  # downscale before OCR for speed
     mask_strict_mode: bool = True  # err on side of masking when in doubt
     drop_image_if_unmaskable: bool = True
+
+    # 業界プロファイル: "pharmacy" / "accounting" / "legal" / "sales" / "hr" / "generic"
+    # 空文字の場合は profile_loader.get_default_profile_name() がフォールバック解決
+    industry_profile: str = ""
 
     # Storage
     keep_screenshots_days: int = 30

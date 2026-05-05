@@ -114,8 +114,8 @@ def test_pipeline_masks_patient_name_and_saves_jpeg(isolated_env, monkeypatch):
 
     # OCR テキスト要約に [MASKED:...] を含む
     assert "[MASKED:" in ss["ocr_text_summary"]
-    # 患者氏名カテゴリが含まれる
-    assert any(c in ss["mask_categories"] for c in ("patient_name", "patient_name_kana", "name_like_kanji"))
+    # 患者氏名カテゴリが含まれる (v1.0汎用化: patient_name → personal_name に統合)
+    assert any(c in ss["mask_categories"] for c in ("personal_name", "personal_name_kana", "name_like_kanji"))
     assert ss["mask_applied_count"] >= 1
 
     # 黒塗りされていることをピクセルレベルで確認

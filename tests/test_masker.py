@@ -215,16 +215,18 @@ def test_empty_boxes_returns_blank_summary() -> None:
 
 # --- 11. DEFAULT_RULES が9カテゴリをカバー ---
 def test_default_rules_cover_required_categories() -> None:
+    """v1.0汎用化で patient_name → personal_name に統合.
+    pharmacy プロファイル継承後の DEFAULT_RULES は薬局必須カテゴリを全てカバー."""
     required = {
-        "patient_name",
-        "insurance_id",
-        "insurance_card_no",
-        "patient_id",
-        "birthdate",
-        "phone",
-        "address",
-        "postal_code",
-        "my_number",
+        "personal_name",       # v1.0で base に格上げ (旧 patient_name)
+        "insurance_id",        # pharmacy 固有
+        "insurance_card_no",   # pharmacy 固有
+        "patient_id",          # pharmacy 固有
+        "birthdate",           # base 共通
+        "phone",               # base 共通
+        "address",             # base 共通
+        "postal_code",         # base 共通
+        "my_number",           # base 共通
     }
     covered = {r.category for r in DEFAULT_RULES}
     missing = required - covered
@@ -240,9 +242,12 @@ def test_window_title_mask_phone() -> None:
 
 
 def test_window_title_mask_name_kanji() -> None:
+    """v1.0: patient_name → personal_name に統合 (base プロファイル化).
+    敬称付き氏名は引き続きマスクされる（name_like_kanji ヒューリスティックは
+    タイトル業務分析阻害のため v1.0 で window_titles 側からは削除済み）."""
     masked, h, cats = mask_window_title("カルテ表示 - 鈴木太郎 様")
     assert "[MASKED:" in masked
-    assert any(c in cats for c in ("patient_name", "name_like_kanji"))
+    assert any(c in cats for c in ("personal_name", "patient_name", "name_like_kanji"))
 
 
 def test_window_title_empty() -> None:

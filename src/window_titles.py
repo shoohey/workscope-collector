@@ -150,27 +150,14 @@ def mask_window_title(title: str) -> tuple[str, str, list[str]]:
                 hit_categories.extend([rule.category] * n)
                 masked = new_text
 
-    # ---- Phase 3: 漢字連続のヒューリスティック ----
-    placeholder_pattern = re.compile(r"\[MASKED:[a-z_]+\]")
-    placeholders: list[str] = []
-
-    def _stash(m: re.Match[str]) -> str:
-        placeholders.append(m.group(0))
-        return f"\x00PH{len(placeholders) - 1}\x00"
-
-    stashed = placeholder_pattern.sub(_stash, masked)
-
-    def _replace_kanji(m: re.Match[str]) -> str:
-        hit_categories.append(CAT_NAME_LIKE_KANJI)
-        return f"[MASKED:{CAT_NAME_LIKE_KANJI}]"
-
-    stashed = RE_KANJI_RUN.sub(_replace_kanji, stashed)
-
-    def _restore(m: re.Match[str]) -> str:
-        idx = int(m.group(1))
-        return placeholders[idx]
-
-    masked = re.sub(r"\x00PH(\d+)\x00", _restore, stashed)
+    # ---- Phase 3: (v1.0で無効化)
+    # v0.1.0 では「漢字 2-5 文字連続」を name_like_kanji としてマスクしていたが、
+    # ウィンドウタイトルには「患者検索」「処方入力」「案件登録」のような業務名
+    # が漢字2-5文字で入ることが多く、これらが全部マスクされると業務フロー解析
+    # が成立しない。タイトルが業務単位の判別子として最重要なので、
+    # 敬称付き氏名は Phase 1/2 でマスク済み、それ以外の漢字連続は許容する。
+    # 個別漢字氏名 (敬称なし) はOCR boxレベル (masker.py) の strict mode で
+    # 引き続きマスクされる（タイトルの誤マスク被害だけ回避する）。
 
     deduped = list(dict.fromkeys(hit_categories))
     return masked, _hash_short(title), deduped

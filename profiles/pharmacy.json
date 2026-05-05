@@ -1,0 +1,39 @@
+{
+  "name": "pharmacy",
+  "extends": "base",
+  "version": "1.0",
+  "description": "薬局・調剤薬局向けマスキングプロファイル",
+  "rules": [
+    {
+      "name": "insurance_card_no",
+      "pattern": "\\d{6,10}[-－]\\d{1,4}",
+      "category": "insurance_card_no",
+      "context_keywords": [],
+      "priority": 100
+    },
+    {
+      "name": "insurance_8digits",
+      "pattern": "(?<!\\d)\\d{8}(?!\\d)",
+      "category": "insurance_id",
+      "context_keywords": ["保険者番号", "保険番号", "保険者", "記号番号", "記号", "番号"],
+      "priority": 110
+    },
+    {
+      "name": "patient_id_digits",
+      "pattern": "\\d{4,}",
+      "category": "patient_id",
+      "context_keywords": ["患者ID", "患者id", "カルテNo", "カルテno", "カルテ番号", "ID", "No.", "受付番号"],
+      "priority": 120
+    }
+  ],
+  "whitelist": {
+    "drug_names": [
+      "アムロジピン", "ロキソニン", "カロナール",
+      "メトホルミン", "アスピリン", "ロサルタン",
+      "アトルバスタチン", "オメプラゾール",
+      "ファモチジン", "クラリスロマイシン",
+      "セフカペン", "ムコダイン", "ムコソルバン",
+      "リピトール", "ノルバスク", "メバロチン", "ガスター"
+    ]
+  }
+}
