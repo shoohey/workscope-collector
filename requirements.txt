@@ -5,7 +5,8 @@
 mss==9.0.1
 
 # Window event hooks, process info, foreground window
-pywin32==306
+# pywin32==306 was yanked from PyPI; 307+ are the only available wheels
+pywin32>=307,<312
 psutil==5.9.8
 
 # Image processing
