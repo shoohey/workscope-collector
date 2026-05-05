@@ -150,17 +150,117 @@ def mask_window_title(title: str) -> tuple[str, str, list[str]]:
                 hit_categories.extend([rule.category] * n)
                 masked = new_text
 
-    # ---- Phase 3: (v1.0で無効化)
-    # v0.1.0 では「漢字 2-5 文字連続」を name_like_kanji としてマスクしていたが、
-    # ウィンドウタイトルには「患者検索」「処方入力」「案件登録」のような業務名
-    # が漢字2-5文字で入ることが多く、これらが全部マスクされると業務フロー解析
-    # が成立しない。タイトルが業務単位の判別子として最重要なので、
-    # 敬称付き氏名は Phase 1/2 でマスク済み、それ以外の漢字連続は許容する。
-    # 個別漢字氏名 (敬称なし) はOCR boxレベル (masker.py) の strict mode で
-    # 引き続きマスクされる（タイトルの誤マスク被害だけ回避する）。
+    # ---- Phase 3: 業務語ホワイトリスト + 氏名候補マスク (Codex Critical#1 対応, 2026-05-06) ----
+    # v0.1.0で全漢字連続マスクしていた→v1.0で全許容に倒した→Codex指摘で
+    # 「敬称なし患者名 (山田太郎 など) が漏れる」と判明したので、業務語ホワイトリストで
+    # 残すべき業務名を保護しつつ、それ以外の漢字2-5文字連続をマスクする折衷案に。
+    masked = _apply_phase3_kanji_mask(masked, hit_categories)
 
     deduped = list(dict.fromkeys(hit_categories))
     return masked, _hash_short(title), deduped
+
+
+# ---- Phase 3 ヘルパ -----------------------------------------------------
+
+# 業務分析を成立させるため残しておくべき汎用業務語（漢字2-5文字）
+# 業界別の業務語は profile_loader 経由で base.json / pharmacy.json の
+# whitelist["business_terms"] / whitelist["dental_terms"] 等から読み込まれる
+_BUILTIN_BUSINESS_TERMS: frozenset[str] = frozenset({
+    # === 汎用UI/操作語 ===
+    "受付", "登録", "編集", "削除", "保存", "確認", "送信", "印刷",
+    "検索", "詳細", "一覧", "新規", "更新", "変更", "修正", "閉じる",
+    "戻る", "次へ", "戻す", "追加", "選択", "決定", "取消", "中止",
+    "ログイン", "ログアウト", "設定", "管理", "操作", "表示", "入力",
+    "出力", "ホーム", "ファイル", "ヘルプ", "ツール", "メニュー",
+    "画面", "設定画面", "管理画面", "ホーム画面",
+    # === 業務シーン共通 ===
+    "業務", "処理", "申請", "承認", "発行", "発注", "受注", "請求",
+    "支払", "入金", "出金", "案件", "計画", "予定", "実績", "報告",
+    # === 薬局/医療系 ===
+    "患者", "処方", "調剤", "薬歴", "服薬", "投薬", "交付", "監査",
+    "計算", "明細", "領収", "保険", "受診", "診察", "予約", "来局",
+    "メイン", "履歴", "記録", "レセプト", "電子", "カルテ",
+    # === 会計/法律/HR系 ===
+    "仕訳", "取引", "勘定", "決算", "決算書", "事件", "依頼",
+    "従業員", "人事", "給与", "勤怠", "休暇", "評価",
+    # === 不動産/建設/製造 ===
+    "物件", "賃貸", "売買", "現場", "工事", "施工", "見積", "発注",
+    "工程", "在庫", "出荷", "検査", "図面", "品質", "仕入",
+})
+
+
+def _phase3_load_extra_terms() -> frozenset[str]:
+    """profile_loader 経由でデフォルトプロファイルの whitelist から業務語を取得.
+
+    取得失敗時 (Mac開発で profile_loader が無いケース等) は空集合.
+    """
+    try:
+        from profile_loader import load_profile, get_default_profile_name  # type: ignore
+    except Exception:
+        return frozenset()
+    try:
+        profile = load_profile(get_default_profile_name() or "pharmacy")
+    except Exception:
+        return frozenset()
+    extras: set[str] = set()
+    for key, val in (profile.whitelist or {}).items():
+        if not isinstance(val, list):
+            continue
+        for item in val:
+            if isinstance(item, str) and 1 < len(item) <= 6:
+                extras.add(item)
+    return frozenset(extras)
+
+
+def _apply_phase3_kanji_mask(masked: str, hit_categories: list[str]) -> str:
+    """業務語ホワイトリストを除外しつつ、敬称なし漢字氏名候補をマスク.
+
+    - [MASKED:xxx] プレースホルダは保護
+    - 業務語ホワイトリスト (組み込み + プロファイル whitelist) はマスクしない
+    - 残った 漢字2-5文字 が氏名候補としてマスクされる
+    """
+    # placeholder を一時退避
+    placeholder_pattern = re.compile(r"\[MASKED:[a-z_]+\]")
+    placeholders: list[str] = []
+
+    def _stash(m: re.Match[str]) -> str:
+        placeholders.append(m.group(0))
+        return f"\x00PH{len(placeholders) - 1}\x00"
+
+    stashed = placeholder_pattern.sub(_stash, masked)
+
+    extra_terms = _phase3_load_extra_terms()
+    business_terms = _BUILTIN_BUSINESS_TERMS | extra_terms
+
+    def _is_business_term(text: str) -> bool:
+        """業務語判定: 完全一致 or 業務語を部分含み AND 漢字3字以上.
+
+        - "患者" → 完全一致 → 業務語
+        - "患者検索" → "患者" / "検索" を含む + 4字 → 業務語
+        - "山田太郎" → どの業務語も含まない → 氏名候補
+        """
+        if text in business_terms:
+            return True
+        if len(text) >= 3:
+            for term in business_terms:
+                if len(term) >= 2 and term in text:
+                    return True
+        return False
+
+    def _replace_kanji(m: re.Match[str]) -> str:
+        text = m.group(0)
+        if _is_business_term(text):
+            return text
+        hit_categories.append(CAT_NAME_LIKE_KANJI)
+        return f"[MASKED:{CAT_NAME_LIKE_KANJI}]"
+
+    stashed = RE_KANJI_RUN.sub(_replace_kanji, stashed)
+
+    def _restore(m: re.Match[str]) -> str:
+        idx = int(m.group(1))
+        return placeholders[idx]
+
+    return re.sub(r"\x00PH(\d+)\x00", _restore, stashed)
 
 
 def is_blocklisted(

@@ -455,5 +455,47 @@ def test_window_titles_works_without_masker(monkeypatch) -> None:
     assert "insurance_id" in cats3
 
 
+# --- 22. Codex Critical#1 (2026-05-06): 敬称なし氏名がタイトルから漏れない ---
+
+def test_window_title_masks_unhonorific_kanji_name() -> None:
+    """敬称なし患者氏名（山田太郎、佐藤花子）はタイトルでもマスクされる."""
+    masked, _, cats = mask_window_title("山田太郎 - 処方入力画面")
+    assert "山田太郎" not in masked
+    assert "name_like_kanji" in cats
+    # 業務語「処方入力」はマスクされない（業務分析を成立させるため）
+    assert "処方入力" in masked
+
+
+def test_window_title_keeps_business_terms() -> None:
+    """漢字業務語は Phase 3 の氏名候補マスクから除外される.
+    NOTE: カナ業務語（ログアウト等）は base.json の name_kana_long ルールに絡むため
+    Phase 3 ではなく別タスクで対応。ここでは漢字業務語のみ検証."""
+    for term in ("患者検索", "処方入力", "受付業務", "案件登録",
+                 "仕訳入力", "メイン画面"):
+        masked, _, _ = mask_window_title(f"システム - {term}")
+        assert term in masked, f"business term '{term}' was incorrectly masked: {masked}"
+
+
+def test_window_title_masks_unhonorific_name_with_business_word() -> None:
+    """業務語と氏名の混在: 業務語は残り氏名はマスク."""
+    masked, _, _ = mask_window_title("受付 - 山田太郎")
+    assert "山田太郎" not in masked
+    assert "受付" in masked
+
+
+def test_window_title_compound_business_term_partial_match() -> None:
+    """部分一致: 「患者」を含む4字以上の語は業務語扱い."""
+    masked, _, cats = mask_window_title("システム - 患者一覧")
+    assert "患者一覧" in masked
+    assert "name_like_kanji" not in cats
+
+
+def test_window_title_short_unknown_kanji_still_masked() -> None:
+    """業務語以外の2字漢字（氏名の一部）はマスク."""
+    masked, _, cats = mask_window_title("メモ - 太郎")
+    assert "太郎" not in masked
+    assert "name_like_kanji" in cats
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
