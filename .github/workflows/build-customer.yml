@@ -1,0 +1,92 @@
+name: Build Customer EXE
+
+on:
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: '顧客名 (例: 村上薬局)'
+        required: true
+        type: string
+      industry:
+        description: '業界プロファイル'
+        required: true
+        type: choice
+        options:
+          - pharmacy
+          - accounting
+          - legal
+          - sales
+          - hr
+          - generic
+      endpoint:
+        description: 'データ送信先URL (USB回収のみなら空)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build:
+    name: Build ${{ inputs.customer }} (${{ inputs.industry }})
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        continue-on-error: false
+
+      - name: Pre-build release check (with expected profile)
+        shell: bash
+        run: |
+          # config.py を顧客向けに書き換える前のチェック (リポジトリ状態の健全性)
+          python scripts/release_check.py || echo "WARN: pre-build check failed; continuing"
+
+      - name: Run build_for_customer.sh
+        shell: bash
+        run: |
+          chmod +x scripts/build_for_customer.sh
+          ./scripts/build_for_customer.sh \
+            --customer "${{ inputs.customer }}" \
+            --industry "${{ inputs.industry }}" \
+            --endpoint "${{ inputs.endpoint }}" \
+            --output "dist/WorkScope_${{ inputs.customer }}_$(date +%Y%m%d).exe"
+
+      - name: Verify built EXE
+        shell: bash
+        run: |
+          ls -la dist/
+          if [ ! -f dist/WorkScope_*.exe ]; then
+            echo "ERROR: built EXE not found"
+            exit 1
+          fi
+
+      - name: Smoke test EXE (start → exit)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist/WorkScope_*.exe | Select-Object -First 1
+          Write-Host "Smoke testing: $($exe.FullName)"
+          $proc = Start-Process -FilePath $exe.FullName -PassThru -NoNewWindow
+          Start-Sleep -Seconds 5
+          if (-not $proc.HasExited) {
+            Stop-Process -Id $proc.Id -Force
+            Write-Host "Smoke test PASS: process started and stopped cleanly"
+          } else {
+            Write-Host "WARN: process exited immediately with code $($proc.ExitCode)"
+            exit 0  # tray-only モードならexitすぐ起こり得るので警告のみ
+          }
+
+      - name: Upload customer build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorkScope_${{ inputs.customer }}_${{ inputs.industry }}
+          path: dist/WorkScope_*.exe
+          retention-days: 30

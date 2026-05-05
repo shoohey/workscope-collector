@@ -12,6 +12,11 @@ _doc_files = []
 for _p in glob.glob(os.path.join('docs', '*.html')):
     _doc_files.append((_p, 'docs'))
 
+# 業界プロファイル JSON 同梱（profile_loader が sys._MEIPASS/profiles/ を参照）
+# 顧客別ビルド時は scripts/build_for_customer.sh が profiles/ を該当業界1ファイルに絞って配置
+for _p in glob.glob(os.path.join('profiles', '*.json')):
+    _doc_files.append((_p, 'profiles'))
+
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
@@ -27,7 +32,8 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'tkinter', 'matplotlib', 'pandas', 'jupyter', 'notebook',
+        # v1.0: tkinter は同意ダイアログで使用するため exclude しない
+        'matplotlib', 'pandas', 'jupyter', 'notebook',
         'pytest', 'sphinx',
     ],
     win_no_prefer_redirects=False,
