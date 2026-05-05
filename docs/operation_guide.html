@@ -17,13 +17,14 @@
     width: 297mm;
     height: 210mm;
     margin: 16px auto;
-    padding: 18mm 22mm;
+    padding: 16mm 22mm 18mm;
     background: #ffffff;
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
     page-break-after: always;
     position: relative;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
   .slide:last-child { page-break-after: auto; }
   .label {
@@ -32,7 +33,7 @@
     letter-spacing: 0.18em;
     font-weight: 700;
     text-transform: uppercase;
-    margin-bottom: 6mm;
+    margin-bottom: 4mm;
   }
   h1 {
     font-family: 'Inter', 'Noto Sans JP', sans-serif;
@@ -40,38 +41,39 @@
     font-size: 36pt;
     color: #1e3a5f;
     line-height: 1.3;
-    margin-bottom: 8mm;
+    margin-bottom: 6mm;
     letter-spacing: 0.01em;
   }
   h2 {
     font-family: 'Inter', 'Noto Sans JP', sans-serif;
     font-weight: 800;
-    font-size: 26pt;
+    font-size: 22pt;
     color: #1e3a5f;
     line-height: 1.3;
-    margin-bottom: 8mm;
+    margin-bottom: 4mm;
   }
   p, li {
-    font-size: 13pt;
-    line-height: 1.9;
+    font-size: 11.5pt;
+    line-height: 1.85;
     color: #1a1a2e;
   }
   .sub {
     color: #4a5568;
-    font-size: 12pt;
-    line-height: 1.8;
+    font-size: 11pt;
+    line-height: 1.7;
+    margin-bottom: 4mm;
   }
   .footer {
     position: absolute;
-    bottom: 10mm;
+    bottom: 8mm;
     left: 22mm;
     right: 22mm;
     display: flex;
     justify-content: space-between;
-    font-size: 9pt;
+    font-size: 8.5pt;
     color: #4a5568;
     border-top: 1px solid #e2e8f0;
-    padding-top: 4mm;
+    padding-top: 3mm;
   }
 
   /* 表紙 */
@@ -80,32 +82,26 @@
     background: linear-gradient(135deg, #ffffff 0%, #f5f7fa 100%);
   }
   .cover .label { font-size: 12pt; }
-  .cover h1 { font-size: 48pt; }
+  .cover h1 { font-size: 44pt; }
   .cover .meta {
-    margin-top: 12mm;
+    margin-top: 10mm;
     color: #4a5568;
-    font-size: 14pt;
+    font-size: 13pt;
   }
 
   /* フローカード */
-  .flow {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr) auto repeat(0, 1fr);
-    gap: 6mm;
-    margin-top: 6mm;
-  }
   .flow-grid {
     display: flex;
     align-items: stretch;
     gap: 4mm;
-    margin-top: 6mm;
+    margin-top: 4mm;
   }
   .flow-step {
     flex: 1;
     background: #f5f7fa;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 8mm 6mm;
+    padding: 7mm 5mm;
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
     display: flex;
     flex-direction: column;
@@ -113,18 +109,18 @@
   .flow-step .num {
     font-family: 'Inter', sans-serif;
     font-weight: 800;
-    font-size: 28pt;
+    font-size: 26pt;
     color: #1e3a5f;
     line-height: 1;
   }
   .flow-step .title {
     font-weight: 700;
-    font-size: 14pt;
+    font-size: 13pt;
     color: #1a1a2e;
     margin: 3mm 0 2mm;
   }
   .flow-step .desc {
-    font-size: 10.5pt;
+    font-size: 10pt;
     color: #4a5568;
     line-height: 1.7;
   }
@@ -133,12 +129,12 @@
     padding-top: 3mm;
     color: #1e3a5f;
     font-weight: 700;
-    font-size: 11pt;
+    font-size: 10.5pt;
   }
   .arrow {
     align-self: center;
     color: #1e3a5f;
-    font-size: 20pt;
+    font-size: 18pt;
     font-weight: 800;
   }
 
@@ -150,15 +146,15 @@
   }
   .steps li {
     display: flex;
-    gap: 6mm;
-    padding: 4mm 0;
+    gap: 5mm;
+    padding: 3mm 0;
     border-bottom: 1px solid #e2e8f0;
     align-items: flex-start;
   }
   .steps li:last-child { border-bottom: none; }
   .step-num {
-    width: 12mm;
-    height: 12mm;
+    width: 11mm;
+    height: 11mm;
     flex-shrink: 0;
     background: #1e3a5f;
     color: #ffffff;
@@ -168,27 +164,27 @@
     justify-content: center;
     font-family: 'Inter', sans-serif;
     font-weight: 800;
-    font-size: 16pt;
+    font-size: 14pt;
   }
   .step-body { flex: 1; }
   .step-title {
     font-weight: 700;
-    font-size: 14pt;
+    font-size: 12.5pt;
     color: #1a1a2e;
     margin-bottom: 1mm;
   }
   .step-desc {
     color: #4a5568;
-    font-size: 11.5pt;
-    line-height: 1.8;
+    font-size: 10.5pt;
+    line-height: 1.75;
   }
   code {
     font-family: 'Inter', monospace;
     background: #f5f7fa;
     border: 1px solid #e2e8f0;
     border-radius: 4px;
-    padding: 1px 6px;
-    font-size: 11pt;
+    padding: 1px 5px;
+    font-size: 10pt;
     color: #1e3a5f;
   }
 
@@ -196,36 +192,91 @@
   .cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8mm;
-    margin-top: 4mm;
+    gap: 6mm;
+    margin-top: 3mm;
+  }
+  .cols-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5mm;
+    margin-top: 3mm;
   }
   .card {
     background: #f5f7fa;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    padding: 6mm 7mm;
+    padding: 5mm 6mm;
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
   }
   .card h3 {
     font-family: 'Inter', 'Noto Sans JP', sans-serif;
     font-weight: 800;
     color: #1e3a5f;
-    font-size: 16pt;
-    margin-bottom: 3mm;
+    font-size: 13pt;
+    margin-bottom: 2.5mm;
   }
   .card ul { list-style: disc; padding-left: 5mm; }
-  .card li { font-size: 11.5pt; line-height: 1.8; }
+  .card li { font-size: 10.5pt; line-height: 1.7; }
+
+  /* チェックリスト */
+  .checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .checklist li {
+    display: flex;
+    gap: 4mm;
+    padding: 3mm 0;
+    border-bottom: 1px dashed #e2e8f0;
+    align-items: flex-start;
+    font-size: 11pt;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-box {
+    width: 6mm;
+    height: 6mm;
+    flex-shrink: 0;
+    border: 2px solid #1e3a5f;
+    border-radius: 3px;
+    margin-top: 0.5mm;
+  }
+  .check-body {
+    flex: 1;
+  }
+  .check-title {
+    font-weight: 700;
+    color: #1a1a2e;
+    font-size: 11.5pt;
+    margin-bottom: 0.5mm;
+  }
+  .check-desc {
+    color: #4a5568;
+    font-size: 10pt;
+    line-height: 1.65;
+  }
+  .check-pass {
+    color: #276749;
+    font-weight: 700;
+    font-size: 9.5pt;
+    margin-top: 1mm;
+  }
+  .check-fail {
+    color: #c53030;
+    font-weight: 700;
+    font-size: 9.5pt;
+  }
 
   /* タスクトレイ表現 */
   .tray-demo {
     display: flex;
-    gap: 8mm;
+    gap: 6mm;
     align-items: center;
-    margin-top: 6mm;
+    margin-top: 4mm;
   }
   .tray-icon {
-    width: 24mm;
-    height: 24mm;
+    width: 22mm;
+    height: 22mm;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -236,47 +287,112 @@
     flex-shrink: 0;
   }
   .dot {
-    width: 12mm;
-    height: 12mm;
+    width: 11mm;
+    height: 11mm;
     border-radius: 50%;
   }
   .dot-rec { background: #276749; box-shadow: 0 0 12px rgba(39,103,73,0.4); }
   .dot-pause { background: #cbd5e0; }
-  .tray-label { font-size: 12pt; color: #4a5568; }
-  .tray-label strong { color: #1a1a2e; font-size: 14pt; display: block; margin-bottom: 1mm; }
+  .dot-error { background: #c53030; box-shadow: 0 0 12px rgba(197,48,48,0.4); }
+  .tray-label { font-size: 11pt; color: #4a5568; }
+  .tray-label strong { color: #1a1a2e; font-size: 12pt; display: block; margin-bottom: 1mm; }
 
   .menu-list {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-    padding: 4mm 0;
-    width: 90mm;
-    margin-top: 6mm;
+    padding: 3mm 0;
+    width: 100%;
+    margin-top: 4mm;
   }
   .menu-list .item {
-    padding: 2.5mm 6mm;
-    font-size: 11.5pt;
+    padding: 2mm 5mm;
+    font-size: 10.5pt;
     color: #1a1a2e;
     border-bottom: 1px solid #e2e8f0;
   }
   .menu-list .item:last-child { border-bottom: none; }
   .menu-list .item .hint {
     color: #4a5568;
-    font-size: 9.5pt;
-    margin-top: 1mm;
+    font-size: 9pt;
+    margin-top: 0.5mm;
   }
+
+  /* テーブル風 */
+  .grid-table {
+    display: grid;
+    grid-template-columns: 70mm 1fr;
+    gap: 0;
+    margin-top: 3mm;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .grid-table > div {
+    padding: 3mm 5mm;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 10.5pt;
+  }
+  .grid-table > div:nth-last-child(-n+2) { border-bottom: none; }
+  .grid-table .head {
+    background: #1e3a5f;
+    color: #ffffff;
+    font-weight: 700;
+  }
+  .grid-table .head + .head { border-left: 1px solid rgba(255,255,255,0.2); }
+  .grid-table .label-cell {
+    background: #f5f7fa;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  /* フローチャート */
+  .flowchart {
+    display: flex;
+    align-items: stretch;
+    gap: 3mm;
+    margin-top: 3mm;
+  }
+  .flow-node {
+    flex: 1;
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4mm;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .flow-node.alert { background: #fff5f5; border-color: #fbb0b0; }
+  .flow-node.ok { background: #f0f9f4; border-color: #9ae0b4; }
+  .flow-node strong { display: block; font-size: 11pt; color: #1a1a2e; margin-bottom: 1mm; }
+  .flow-node small { font-size: 9.5pt; color: #4a5568; line-height: 1.6; }
 
   /* FAQ */
   .faq-item {
-    border-left: 4px solid #1e3a5f;
-    padding-left: 6mm;
-    margin-bottom: 5mm;
+    border-left: 3px solid #1e3a5f;
+    padding-left: 5mm;
+    margin-bottom: 4mm;
   }
-  .faq-q { font-weight: 700; color: #1a1a2e; font-size: 12pt; margin-bottom: 1mm; }
-  .faq-a { color: #4a5568; font-size: 11pt; line-height: 1.8; }
+  .faq-q { font-weight: 700; color: #1a1a2e; font-size: 11pt; margin-bottom: 1mm; }
+  .faq-a { color: #4a5568; font-size: 10pt; line-height: 1.75; }
 
   .placeholder { color: #c53030; font-weight: 700; }
+  .badge {
+    display: inline-block;
+    padding: 0.5mm 3mm;
+    border-radius: 12px;
+    font-size: 9pt;
+    font-weight: 700;
+    margin-right: 2mm;
+  }
+  .badge-success { background: #c6f6d5; color: #276749; }
+  .badge-warn { background: #feebc8; color: #975a16; }
+  .badge-error { background: #fed7d7; color: #c53030; }
 
   @page { size: A4 landscape; margin: 0; }
   @media print {
@@ -289,15 +405,15 @@
 
 <!-- Slide 1: Cover -->
 <section class="slide cover">
-  <div class="label">OPERATION GUIDE</div>
+  <div class="label">OPERATION GUIDE / v2</div>
   <h1>WorkScope Collector<br>運用手順書</h1>
   <div class="meta">
     <span class="placeholder">[薬局名]</span> 様<br>
-    2026年5月
+    2026年5月 / 株式会社TRIBE
   </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>1 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>1 / 11</div>
   </div>
 </section>
 
@@ -305,12 +421,12 @@
 <section class="slide">
   <div class="label">OVERVIEW / 01</div>
   <h2>全体フロー</h2>
-  <p class="sub">業務記録から自動化まで、約5週間のプロジェクトです。</p>
+  <p class="sub">業務記録から自動化提案まで、約5週間のプロジェクトです。本書はそのうち <strong>「収集フェーズ（2週間）」</strong> の運用ガイドです。</p>
   <div class="flow-grid">
     <div class="flow-step">
       <div class="num">01</div>
       <div class="title">収集</div>
-      <div class="desc">薬局PCに本ツールをインストールし、日常業務をそのまま記録します。</div>
+      <div class="desc">薬局PCに本ツールを入れ、日常業務をそのまま記録します。本書の対象範囲。</div>
       <div class="duration">2週間</div>
     </div>
     <div class="arrow">→</div>
@@ -335,229 +451,501 @@
       <div class="duration">継続</div>
     </div>
   </div>
+  <div class="cols" style="margin-top: 6mm;">
+    <div class="card">
+      <h3>収集フェーズで毎日やること</h3>
+      <ul>
+        <li>朝（開店時）: 1〜2分の起動チェック</li>
+        <li>業務中: いつも通り業務を行うだけ</li>
+        <li>夕方（任意）: 1分の進捗確認</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>収集フェーズで週1回やること</h3>
+      <ul>
+        <li>金曜の業務終了前に10分のチェック</li>
+        <li>容量・エラーログ・サンプル目視</li>
+        <li>記録シートに状態を残す</li>
+      </ul>
+    </div>
+  </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>2 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>2 / 11</div>
   </div>
 </section>
 
-<!-- Slide 3: インストール -->
+<!-- Slide 3: インストール手順 -->
 <section class="slide">
   <div class="label">INSTALL / 02</div>
-  <h2>インストール手順</h2>
+  <h2>初日: インストール手順</h2>
   <p class="sub">USBメモリから3ステップで完了します。所要時間は約5分です。</p>
-  <ol class="steps" style="margin-top: 4mm;">
+  <ol class="steps" style="margin-top: 3mm;">
     <li>
       <div class="step-num">1</div>
       <div class="step-body">
         <div class="step-title">USBメモリをレセコンPCに接続</div>
-        <div class="step-desc">配布したUSBメモリを薬局PCのUSBポートに接続します。エクスプローラーが自動で開きます。</div>
+        <div class="step-desc">配布したUSBメモリを薬局PCのUSBポートに接続します。エクスプローラーが開いたら、中身（<code>WorkScope.exe</code> / <code>install.bat</code> / <code>uninstall.bat</code> / 同意書PDF）が揃っていることを確認してください。</div>
       </div>
     </li>
     <li>
       <div class="step-num">2</div>
       <div class="step-body">
         <div class="step-title"><code>install.bat</code> を「管理者として実行」</div>
-        <div class="step-desc">USB内の <code>install.bat</code> を右クリック →「管理者として実行」を選択。UAC(ユーザーアカウント制御)が出たら「はい」を選択します。</div>
+        <div class="step-desc">USB内の <code>install.bat</code> を右クリック →「管理者として実行」を選択。UAC(ユーザーアカウント制御)が出たら「はい」を選択。黒いコンソール画面に <strong>「[5/5] インストール完了」</strong> と出れば成功です。</div>
       </div>
     </li>
     <li>
       <div class="step-num">3</div>
       <div class="step-body">
-        <div class="step-title">完了確認</div>
-        <div class="step-desc">画面右下のタスクトレイに緑の丸(録画中アイコン)が出れば完了です。再起動は不要です。</div>
+        <div class="step-title">タスクトレイで緑の丸を確認</div>
+        <div class="step-desc">画面右下のタスクトレイに緑の丸(録画中アイコン)が出れば完了です。再起動は不要です。<strong>続けて次ページの「導入直後チェック」を実施してください。</strong></div>
       </div>
     </li>
   </ol>
+  <div class="card" style="margin-top: 4mm; border-color: #fbb0b0; background: #fff5f5;">
+    <h3 style="color: #c53030;">★ インストール直後の重要事項</h3>
+    <ul>
+      <li>USB は抜かずに<strong>そのまま挿しておいてください</strong>（直後チェックで利用）</li>
+      <li>レセコン業務を1〜2件操作してもらう前提です（実患者の操作でOK・マスクされます）</li>
+      <li>同意書はインストール前に署名済みであることが大前提です</li>
+    </ul>
+  </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>3 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>3 / 11</div>
   </div>
 </section>
 
-<!-- Slide 4: タスクトレイ -->
+<!-- Slide 4: 導入直後の動作確認 -->
 <section class="slide">
-  <div class="label">TRAY UI / 03</div>
+  <div class="label">DAY 0 CHECK / 03</div>
+  <h2>導入直後の動作確認チェックリスト</h2>
+  <p class="sub">インストール完了後10分以内に、薬局担当者と一緒にすべて確認します。1つでも未達なら導入を見送り、現場で原因確認します。</p>
+  <ul class="checklist" style="margin-top: 2mm;">
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">タスクトレイに <strong>緑色</strong>のアイコンが表示されている</div>
+        <div class="check-desc">タスクトレイの上向き矢印(^)を開いて隠れているアイコンも確認。アイコンを右クリック → ステータスが「録画中」であることを目視。</div>
+        <div class="check-pass">✓ 合格基準: 緑丸 + 「録画中（イベント数: 0以上）」表示</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">レセコンを 1〜2件 操作してもらい、スクショが生成される</div>
+        <div class="check-desc">薬剤師さんに通常通りレセコンを操作してもらう（実患者でOK）。1分後にトレイ右クリック →「直近のスクショを確認」で 1 件以上表示されること。</div>
+        <div class="check-pass">✓ 合格基準: 直近スクショ一覧に1件以上表示</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">マスキングが <strong>正しく効いている</strong> ことを目視</div>
+        <div class="check-desc">直近スクショを実際に開いて、患者氏名・電話・住所・保険者番号・生年月日・マイナンバーが <strong>すべて黒塗り</strong> されていることを確認。薬剤師さんと一緒に確認するのが理想。</div>
+        <div class="check-fail">✗ 1つでも黒塗りされていない PII を発見したら → 即一時停止 → 担当者に電話</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">PCの動作に明らかな重さが出ていない</div>
+        <div class="check-desc">タスクマネージャー(Ctrl+Shift+Esc)で <code>WorkScope.exe</code> の CPU が 5% 以下、メモリが 300MB 以下であること。レセコン操作にラグが出ていないことを薬剤師さんに口頭で確認。</div>
+        <div class="check-pass">✓ 合格基準: CPU 5%以下 / メモリ 300MB以下 / 体感ラグなし</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">一時停止 → 再開が動作する</div>
+        <div class="check-desc">トレイ右クリック →「一時停止」→ アイコンが灰色になる →「再開」→ 緑に戻る、を実機で1往復。薬剤師さんに「いつでも止められる」ことを実演で見せる。</div>
+        <div class="check-pass">✓ 合格基準: アイコンの色変化と「録画中／一時停止中」表示の切替を確認</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-box"></div>
+      <div class="check-body">
+        <div class="check-title">緊急連絡先カードを薬局担当者に手渡し</div>
+        <div class="check-desc">電話番号・LINE ID・メールアドレスをまとめた小カードを、薬局の見える場所に貼ってもらう。「異変があったら即連絡」を口頭で約束。</div>
+        <div class="check-pass">✓ 合格基準: 連絡先が現場に物理的に残っている</div>
+      </div>
+    </li>
+  </ul>
+  <div class="footer">
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>4 / 11</div>
+  </div>
+</section>
+
+<!-- Slide 5: タスクトレイの見方 -->
+<section class="slide">
+  <div class="label">TRAY UI / 04</div>
   <h2>タスクトレイの見方</h2>
-  <p class="sub">画面右下のアイコンで、いつでも録画状態を確認・操作できます。</p>
+  <p class="sub">画面右下のアイコンで、いつでも録画状態を確認・操作できます。色の意味を覚えるだけでOKです。</p>
   <div class="tray-demo">
     <div class="tray-icon"><div class="dot dot-rec"></div></div>
-    <div class="tray-label"><strong>緑の丸: 録画中</strong>業務記録が正常に動作しています。</div>
+    <div class="tray-label"><strong>緑の丸: 録画中</strong>業務記録が正常に動作中。これが日常状態です。</div>
     <div class="tray-icon"><div class="dot dot-pause"></div></div>
-    <div class="tray-label"><strong>グレーの丸: 一時停止中</strong>クリックひとつで再開できます。</div>
+    <div class="tray-label"><strong>グレーの丸: 一時停止中</strong>休憩・私的操作時に手動で切り替えた状態。</div>
+    <div class="tray-icon"><div class="dot dot-error"></div></div>
+    <div class="tray-label"><strong>赤の丸 / アイコンなし: 異常</strong>担当者にすぐ連絡をお願いします。</div>
   </div>
-  <div class="cols" style="margin-top: 8mm;">
+  <div class="cols" style="margin-top: 6mm;">
     <div class="card">
       <h3>右クリックメニュー</h3>
-      <div class="menu-list" style="width: 100%; margin-top: 0;">
+      <div class="menu-list">
         <div class="item">録画 一時停止 / 再開<div class="hint">休憩・私的利用時は一時停止を推奨</div></div>
-        <div class="item">データフォルダを開く<div class="hint">マスク済みスクショ・イベントログを確認</div></div>
-        <div class="item">直近スクショを確認<div class="hint">最新10件をプレビュー表示</div></div>
-        <div class="item">ステータス<div class="hint">本日の記録時間・容量使用率</div></div>
-        <div class="item">アンインストール<div class="hint">いつでも完全削除可能</div></div>
+        <div class="item">直近のスクショを確認<div class="hint">最新10件のサムネイル表示。マスキング目視に最重要</div></div>
+        <div class="item">データフォルダを開く<div class="hint">マスク済みPNG・JSONLログを直接確認</div></div>
+        <div class="item">設定ファイルを開く<div class="hint">通常は開く必要なし。担当者の指示時のみ</div></div>
+        <div class="item">完全に終了<div class="hint">一時停止と異なり、再起動するまで起動しません</div></div>
       </div>
     </div>
     <div class="card">
-      <h3>緑から変わらない場合</h3>
+      <h3>こんな時はどうする？</h3>
       <ul>
-        <li>業務終了時刻まで継続録画されます</li>
-        <li>長時間PC放置時は自動的に一時停止</li>
-        <li>パスワード入力画面では自動破棄</li>
-        <li>異常時は赤丸で表示されます</li>
+        <li><strong>休憩中・私的利用</strong>: 一時停止。戻ったら再開</li>
+        <li><strong>パスワード入力画面</strong>: 自動でブロック対象（記録されません）</li>
+        <li><strong>長時間PC放置</strong>: 操作がなければ自動でキャプチャ停止</li>
+        <li><strong>緑から変わった</strong>: 何もせず担当者にまず連絡</li>
+        <li><strong>タスクトレイにアイコンが無い</strong>: タスクトレイの上向き矢印(^)で隠れているアイコンを表示</li>
       </ul>
     </div>
   </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>4 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>5 / 11</div>
   </div>
 </section>
 
-<!-- Slide 5: 同意書運用 -->
+<!-- Slide 6: 日次チェック -->
 <section class="slide">
-  <div class="label">CONSENT / 04</div>
-  <h2>同意書の運用</h2>
-  <p class="sub">薬剤師さん全員のご署名を、収集開始前に取得してください。</p>
-  <ol class="steps" style="margin-top: 4mm;">
+  <div class="label">DAILY CHECK / 05</div>
+  <h2>日次チェック（毎朝3分）</h2>
+  <p class="sub">毎朝の開店準備中に、誰でもできる3項目を確認します。担当者を 1 名決めておくと運用が安定します。</p>
+  <div class="cols-3">
+    <div class="card">
+      <h3 style="font-size: 12pt;">朝の確認 ①<br>緑の丸が出ているか</h3>
+      <ul>
+        <li>PC起動後、タスクトレイを確認</li>
+        <li>緑の丸が出ていればOK</li>
+        <li>無ければ <code>WorkScope.exe</code> をスタートメニューから起動</li>
+        <li>それでもダメなら担当者に連絡</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size: 12pt;">朝の確認 ②<br>昨日のデータがあるか</h3>
+      <ul>
+        <li>トレイ右クリック →「直近のスクショを確認」</li>
+        <li>昨日の業務時間中の画像が残っているか目視</li>
+        <li>0件なら昨日の録画が止まっていた可能性</li>
+        <li>5件以上残っていれば正常</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size: 12pt;">朝の確認 ③<br>マスキングが効いているか</h3>
+      <ul>
+        <li>直近スクショから1枚開いて目視</li>
+        <li>患者情報が黒塗りされているか確認</li>
+        <li>少しでも怪しい部分があれば即一時停止</li>
+        <li>担当者に画像を送付（マスク済みなのでOK）</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 5mm;">
+    <h3>日次チェックシート（コピーして使用）</h3>
+    <div class="grid-table" style="grid-template-columns: 30mm 1fr 1fr 1fr 30mm; margin-top: 2mm;">
+      <div class="head">日付</div>
+      <div class="head">①緑丸</div>
+      <div class="head">②昨日のデータ</div>
+      <div class="head">③マスキング</div>
+      <div class="head">担当者</div>
+      <div class="label-cell">5/5(月)</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>　　　</div>
+      <div class="label-cell">5/6(火)</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>　　　</div>
+      <div class="label-cell">5/7(水)</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>☐ OK ☐ NG</div>
+      <div>　　　</div>
+    </div>
+  </div>
+  <div class="footer">
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>6 / 11</div>
+  </div>
+</section>
+
+<!-- Slide 7: 週次チェック -->
+<section class="slide">
+  <div class="label">WEEKLY CHECK / 06</div>
+  <h2>週次チェック（毎週金曜10分）</h2>
+  <p class="sub">「1週間ちゃんと回っているか」を担当者が確認します。金曜の業務終了前がおすすめです。</p>
+  <ol class="steps" style="margin-top: 2mm;">
     <li>
       <div class="step-num">1</div>
       <div class="step-body">
-        <div class="step-title">同意書を印刷（A4縦・人数分）</div>
-        <div class="step-desc"><code>consent_form.html</code> をブラウザで開き、印刷で出力します。<span class="placeholder">[薬局名]</span> はあらかじめ手書きまたはWordで埋めても構いません。</div>
+        <div class="step-title">容量チェック（2分）</div>
+        <div class="step-desc">トレイ右クリック →「データフォルダを開く」→ <code>%APPDATA%\WorkScope\data</code> のサイズを確認。<strong>1週間で 1〜3GB が正常</strong>。0.1GB 未満なら録画停止の疑い、5GB 超なら異常容量。</div>
       </div>
     </li>
     <li>
       <div class="step-num">2</div>
       <div class="step-body">
-        <div class="step-title">朝礼または個別面談で内容を説明</div>
-        <div class="step-desc">「収集する情報」「収集しない情報」「いつでも一時停止できる」の3点を必ず口頭で伝えてください。</div>
+        <div class="step-title">スクショサンプル目視（5分）</div>
+        <div class="step-desc">同フォルダ内の <code>screenshots</code> フォルダから無作為に <strong>10枚</strong> 開いて、すべて黒塗りが効いているか確認。怪しい画像は即削除し、ファイル名と理由をメモ。</div>
       </div>
     </li>
     <li>
       <div class="step-num">3</div>
       <div class="step-body">
-        <div class="step-title">署名後の控えをお渡しし、原本を薬局で保管</div>
-        <div class="step-desc">原本は鍵付きキャビネット等で保管。退職時もデータ削除依頼が可能なため、保管期間中は破棄しないでください。</div>
+        <div class="step-title">エラーログ確認（2分）</div>
+        <div class="step-desc"><code>%APPDATA%\WorkScope\logs\collector.log</code> をメモ帳で開き、末尾の100行を確認。<code>ERROR</code> や <code>CRITICAL</code> の行があれば、行ごと担当者に共有。<code>WARN</code> は通常スキップで構いません。</div>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">記録シートを担当者にLINE/メールで送信（1分）</div>
+        <div class="step-desc">日次チェックシート＋週次の所感を担当者に送付。「マスキング異常なし」「容量◯GB」「エラー◯件」のサマリだけでOK。</div>
       </div>
     </li>
   </ol>
+  <div class="card" style="margin-top: 4mm;">
+    <h3>1週間が「ちゃんと回っている」目安</h3>
+    <div class="grid-table" style="grid-template-columns: 60mm 1fr 1fr; margin-top: 2mm;">
+      <div class="head">指標</div>
+      <div class="head">合格基準</div>
+      <div class="head">要連絡</div>
+      <div class="label-cell">data フォルダの容量</div>
+      <div>1.0 GB 〜 3.5 GB / 週</div>
+      <div>0.1GB 未満 or 5GB超</div>
+      <div class="label-cell">events/*.jsonl の件数</div>
+      <div>1日あたり 200 行以上</div>
+      <div>50行未満の日が複数</div>
+      <div class="label-cell">collector.log の ERROR</div>
+      <div>0 件 もしくは 1〜2件</div>
+      <div>1日5件以上 / 同一エラー連続</div>
+      <div class="label-cell">サンプル目視のマスク漏れ</div>
+      <div>0 件</div>
+      <div>1件でも発見</div>
+    </div>
+  </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>5 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>7 / 11</div>
   </div>
 </section>
 
-<!-- Slide 6: データ確認 -->
+<!-- Slide 8: 異常時の対応フロー -->
 <section class="slide">
-  <div class="label">DATA REVIEW / 05</div>
-  <h2>データの確認方法</h2>
+  <div class="label">INCIDENT FLOW / 07</div>
+  <h2>異常を見つけたら（即対応フロー）</h2>
+  <p class="sub">異変を見つけた瞬間に、現場で迷わず動ける手順です。</p>
+
+  <div class="flowchart">
+    <div class="flow-node alert">
+      <strong>① 異変を発見</strong>
+      <small>赤丸 / マスク漏れ / 動作重い / アイコン消失 etc</small>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-node">
+      <strong>② 録画を一時停止</strong>
+      <small>右クリック → 一時停止<br>まず止めるのが最優先</small>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-node">
+      <strong>③ 担当者に電話 / LINE</strong>
+      <small>どんな小さなことでも報告。<br>判断は担当者がします</small>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-node ok">
+      <strong>④ 指示に従う</strong>
+      <small>修正版配布まで停止<br>もしくは即時アンインストール</small>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top: 7mm;">
+    <div class="card">
+      <h3>パターン別の見分け方</h3>
+      <ul>
+        <li><span class="badge badge-error">赤丸</span> 録画エラー。即停止 → 連絡</li>
+        <li><span class="badge badge-error">マスク漏れ</span> 個人情報漏洩リスク。即停止 → 連絡</li>
+        <li><span class="badge badge-warn">PC重い</span> 一時停止して様子見。継続なら連絡</li>
+        <li><span class="badge badge-warn">アイコン消失</span> 再起動で復活することが多い</li>
+        <li><span class="badge badge-success">緑丸のまま</span> 異常なし。日常運用継続</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>絶対にやってはいけないこと</h3>
+      <ul>
+        <li>独自判断で <code>data/</code> フォルダを削除する</li>
+        <li>担当者連絡前に「アンインストール」を実行する（ログが残らないため）</li>
+        <li>異変のスクショをメール / SNSに上げる（社外共有はNG）</li>
+        <li>マスク漏れがあった画像をそのまま残す（即削除）</li>
+        <li>緊急時に判断を1人で抱え込む（必ず担当者に共有）</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>8 / 11</div>
+  </div>
+</section>
+
+<!-- Slide 9: データの確認方法 -->
+<section class="slide">
+  <div class="label">DATA REVIEW / 08</div>
+  <h2>データの確認方法（薬剤師さん向け）</h2>
   <p class="sub">いつでも「何が記録されているか」を、薬剤師さんご自身が確認できます。</p>
-  <div class="cols" style="margin-top: 4mm;">
+  <div class="cols">
     <div class="card">
       <h3>方法1: データフォルダを開く</h3>
       <ul>
         <li>タスクトレイアイコンを右クリック</li>
         <li>「データフォルダを開く」を選択</li>
         <li>場所: <code>%APPDATA%\WorkScope\data</code></li>
-        <li>マスク済みPNG・JSONLログが格納</li>
+        <li><code>screenshots</code>: マスク済みPNG画像</li>
+        <li><code>events</code>: ウィンドウ切替記録（JSONL）</li>
       </ul>
     </div>
     <div class="card">
       <h3>方法2: 直近スクショを確認</h3>
       <ul>
-        <li>タスクトレイ右クリック →「直近スクショを確認」</li>
+        <li>タスクトレイ右クリック →「直近のスクショを確認」</li>
         <li>最新10件がサムネイル表示</li>
+        <li>クリックでフルサイズ表示</li>
         <li>個人情報が黒塗りされていることを確認可能</li>
         <li>気になる画像はその場で削除も可能</li>
       </ul>
     </div>
   </div>
-  <div class="card" style="margin-top: 6mm;">
-    <h3>もし個人情報が黒塗りされていなかったら</h3>
-    <ul>
-      <li>直ちに録画を一時停止し、<span class="placeholder">[連絡先]</span> までご連絡ください</li>
-      <li>該当画像はその場で削除いただいて構いません</li>
-      <li>マスキング辞書を更新し、即日アップデートで対応します</li>
-    </ul>
+  <div class="card" style="margin-top: 5mm;">
+    <h3>マスキング対象（自動で黒塗りされるもの）</h3>
+    <div class="grid-table" style="grid-template-columns: 50mm 1fr; margin-top: 2mm;">
+      <div class="label-cell">患者氏名</div><div>漢字氏名（鈴木太郎様 等）/ カナ氏名 / ふりがな</div>
+      <div class="label-cell">識別番号</div><div>患者ID / カルテ番号 / 受付番号 / 各種数字列（4桁以上）</div>
+      <div class="label-cell">保険関係</div><div>保険者番号（8桁）/ 記号番号 / マイナンバー（12桁）</div>
+      <div class="label-cell">連絡先</div><div>電話番号 / メールアドレス / 郵便番号 / 住所（都道府県〜番地）</div>
+      <div class="label-cell">日付</div><div>生年月日（西暦・和暦・年月日形式すべて）</div>
+    </div>
   </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>6 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>9 / 11</div>
   </div>
 </section>
 
-<!-- Slide 7: データ回収 -->
+<!-- Slide 10: データの回収方法 -->
 <section class="slide">
-  <div class="label">DATA HANDOVER / 06</div>
-  <h2>データの回収方法</h2>
-  <p class="sub">2週間の収集完了後、USBメモリ持参で回収にお伺いします。</p>
-  <ol class="steps" style="margin-top: 4mm;">
+  <div class="label">DATA HANDOVER / 09</div>
+  <h2>2週間後: データの回収方法</h2>
+  <p class="sub">2週間の収集完了後、暗号化USBメモリ持参で担当者がお伺いします。所要時間は約30分です。</p>
+  <ol class="steps" style="margin-top: 2mm;">
     <li>
       <div class="step-num">1</div>
       <div class="step-body">
-        <div class="step-title">収集終了の通知</div>
-        <div class="step-desc">タスクトレイ右クリック →「録画 一時停止」で記録を停止してください。</div>
+        <div class="step-title">録画を一時停止（重要）</div>
+        <div class="step-desc">タスクトレイ右クリック →「一時停止」→ 灰色丸を確認 → 5秒待つ。書き込み中のファイルが flush されるのを待ってからコピーします。</div>
       </div>
     </li>
     <li>
       <div class="step-num">2</div>
       <div class="step-body">
-        <div class="step-title">データフォルダを丸ごとコピー</div>
-        <div class="step-desc"><code>%APPDATA%\WorkScope\data</code> フォルダをUSBメモリにコピーします。所要時間は通常5〜10分です。</div>
+        <div class="step-title">データフォルダを暗号化USBにコピー</div>
+        <div class="step-desc"><code>%APPDATA%\WorkScope\data</code> 配下と <code>logs</code> を <code>robocopy</code> で安全コピー。所要時間 5〜10分。失敗 0 件であることをログで確認します。</div>
       </div>
     </li>
     <li>
       <div class="step-num">3</div>
       <div class="step-body">
-        <div class="step-title">担当者が立ち会い、内容を確認</div>
-        <div class="step-desc">マスキングが適切にかかっているかを、薬局担当者と一緒に5サンプルほど目視確認します。</div>
+        <div class="step-title">薬局担当者と立会のもと、ランダム3枚を目視確認</div>
+        <div class="step-desc">コピーしたデータから 3 枚をランダムに開き、マスキング状態を一緒に確認。確認シートに署名いただきます。</div>
       </div>
     </li>
     <li>
       <div class="step-num">4</div>
       <div class="step-body">
-        <div class="step-title">USBメモリの暗号化と持ち帰り</div>
-        <div class="step-desc">BitLocker To Go でUSB全体を暗号化したうえで持ち帰ります。解析完了後、USBは安全消去します。</div>
+        <div class="step-title">運用継続 / 一時停止 / アンインストールを選択</div>
+        <div class="step-desc">薬局のご希望で、<strong>(A) 継続録画</strong> / <strong>(B) 一時停止</strong> / <strong>(C) 完全アンインストール</strong> のいずれかを選択。Cの場合は <code>uninstall.bat</code> を管理者実行 → データも削除を選択して完全消去。</div>
       </div>
     </li>
   </ol>
+  <div class="card" style="margin-top: 4mm; border-color: #fbb0b0; background: #fff5f5;">
+    <h3 style="color: #c53030;">★ 持ち帰り後の取り扱い</h3>
+    <ul>
+      <li>暗号化USB は社内の鍵付きキャビネットで保管します</li>
+      <li>データは社内の暗号化サーバへ移送後、USBは安全消去して再利用します</li>
+      <li>解析作業は<strong>クラウドへ送信せず、オフラインPC上のみ</strong>で実施します</li>
+      <li>解析完了後の生データは、ご希望に応じて削除証明書を発行します</li>
+    </ul>
+  </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>7 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>10 / 11</div>
   </div>
 </section>
 
-<!-- Slide 8: トラブル -->
+<!-- Slide 11: 連絡先・FAQ -->
 <section class="slide">
-  <div class="label">TROUBLESHOOTING / 07</div>
-  <h2>トラブル時のご連絡</h2>
-  <p class="sub">緊急時は以下までお気軽にご連絡ください。</p>
-  <div class="card" style="margin-top: 4mm;">
-    <h3>連絡先</h3>
-    <ul style="list-style: none; padding-left: 0;">
-      <li style="margin-bottom: 2mm;">電話: <span class="placeholder">[電話番号]</span>（平日 9:00〜18:00）</li>
-      <li style="margin-bottom: 2mm;">メール: <span class="placeholder">[メールアドレス]</span></li>
-      <li>緊急時SMS: <span class="placeholder">[緊急連絡先]</span></li>
-    </ul>
-  </div>
-  <h3 style="font-family:'Inter','Noto Sans JP',sans-serif; color:#1e3a5f; font-size:16pt; margin-top: 6mm;">よくあるご質問</h3>
-  <div style="margin-top: 4mm;">
-    <div class="faq-item">
-      <div class="faq-q">Q. PCの動作が重くなりませんか？</div>
-      <div class="faq-a">A. CPU使用率は通常2〜4%、メモリは200MB程度です。レセコン業務に支障が出る重さにはなりません。万一重さを感じたら一時停止してご連絡ください。</div>
+  <div class="label">CONTACT & FAQ / 10</div>
+  <h2>連絡先 / よくあるご質問</h2>
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h3>連絡先</h3>
+        <ul style="list-style: none; padding-left: 0;">
+          <li style="margin-bottom: 1.5mm;"><strong>電話</strong>: <span class="placeholder">[電話番号]</span><br><span style="font-size: 9.5pt; color: #4a5568;">平日 9:00〜18:00 / 緊急時は 24h 対応</span></li>
+          <li style="margin-bottom: 1.5mm;"><strong>LINE</strong>: <span class="placeholder">[LINE ID]</span><br><span style="font-size: 9.5pt; color: #4a5568;">画像送付などはこちらが便利</span></li>
+          <li style="margin-bottom: 1.5mm;"><strong>メール</strong>: <span class="placeholder">[メールアドレス]</span></li>
+          <li><strong>運営</strong>: 株式会社TRIBE / 担当: <span class="placeholder">[担当者名]</span></li>
+        </ul>
+      </div>
+      <div class="card" style="margin-top: 4mm; border-color: #fbb0b0; background: #fff5f5;">
+        <h3 style="color: #c53030;">緊急時（最優先）</h3>
+        <ul>
+          <li>マスク漏れを発見</li>
+          <li>USB 紛失 / 持ち出し疑いがある</li>
+          <li>レセコンPCの動作が業務に支障</li>
+        </ul>
+        <p style="font-size: 10pt; color: #c53030; margin-top: 2mm;">→ 上記は時間問わず即電話してください。</p>
+      </div>
     </div>
-    <div class="faq-item">
-      <div class="faq-q">Q. インターネットに何か送られていませんか？</div>
-      <div class="faq-a">A. 一切送信しません。ファイアウォールでブロックされても正常動作します。ご不安な場合はネットワーク監視ソフトでご確認ください。</div>
-    </div>
-    <div class="faq-item">
-      <div class="faq-q">Q. アンインストールすると、これまでのデータも消えますか？</div>
-      <div class="faq-a">A. 「データも一緒に削除する」「データは残す」の選択肢が出ます。回収前にアンインストールする場合は「データは残す」を選択してください。</div>
+    <div>
+      <h3 style="font-family:'Inter','Noto Sans JP',sans-serif; color:#1e3a5f; font-size: 14pt; margin-bottom: 3mm;">よくあるご質問</h3>
+      <div class="faq-item">
+        <div class="faq-q">Q. レセコンPCの動作が重くなりませんか？</div>
+        <div class="faq-a">A. CPU使用率は通常2〜4%、メモリは200MB程度です。レセコン業務に支障が出る重さにはなりません。万一重さを感じたら一時停止してご連絡ください。</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. インターネットに何か送られていませんか？</div>
+        <div class="faq-a">A. 一切送信しません。ファイアウォールでブロックされても正常動作します。ご不安な場合はネットワーク監視ソフトでご確認ください。</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. アンインストールするとデータも消えますか？</div>
+        <div class="faq-a">A.「データも一緒に削除する／データは残す」の選択肢が出ます。回収前なら「データは残す」を選択してください。</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. PC を再起動するとどうなりますか？</div>
+        <div class="faq-a">A. 自動的に再起動して録画を再開します。何もしていただく必要はありません。</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Q. 業務終了後・夜間も録画されていますか？</div>
+        <div class="faq-a">A. 設定で「夜10時〜朝6時はキャプチャしない」も可能です。ご希望をお伝えください。</div>
+      </div>
     </div>
   </div>
   <div class="footer">
-    <div>WorkScope Collector / 運用手順書</div>
-    <div>8 / 8</div>
+    <div>WorkScope Collector / 運用手順書 v2</div>
+    <div>11 / 11</div>
   </div>
 </section>
 
