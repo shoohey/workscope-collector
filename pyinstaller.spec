@@ -1,10 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for WorkScope Collector (Windows, single-file, no console)."""
+"""PyInstaller spec for WorkScope Collector (Windows, single-file, no console).
 
+EXE 名は環境変数で動的に決まる:
+- CUSTOMER_NAME 環境変数あり → WorkScope_<CUSTOMER_NAME>_<YYYYMMDD>.exe
+- なし → WorkScope.exe (汎用ビルド・後方互換)
+
+PyInstaller の制約: .spec ファイル指定時は --name コマンドライン引数が
+渡せないため、ここ (.spec内 = Pythonコード) で動的決定する.
+"""
+
+import datetime
 import glob
 import os
 
 block_cipher = None
+
+# EXE 名の動的決定 (AppVeyor の env vars と build_for_customer.sh の両方から制御可能)
+_customer = (os.environ.get('CUSTOMER_NAME') or '').strip()
+_build_date = datetime.datetime.now().strftime('%Y%m%d')
+EXE_NAME = f'WorkScope_{_customer}_{_build_date}' if _customer else 'WorkScope'
 
 # 同梱する HTML ドキュメント（同意書・運用ガイド・データ取扱方針 等）
 # tray.py の bundled_doc_path() が sys._MEIPASS/docs/<name> を参照する
@@ -51,7 +65,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='WorkScope',
+    name=EXE_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

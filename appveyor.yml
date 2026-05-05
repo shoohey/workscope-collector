@@ -141,38 +141,59 @@ before_build:
       }
 
 # ============================================================
-# build_script: PyInstaller でビルド (顧客別なら EXE名に customer + date)
+# build_script: PyInstaller でビルド (EXE名は .spec 内で環境変数から決定)
 # ============================================================
+# NOTE:
+# - .spec ファイル指定時は --name 引数が使えないので、pyinstaller.spec
+#   内で os.environ['CUSTOMER_NAME'] を読んで EXE_NAME を決める実装に
+#   なっている (.spec 自体が Python コードなので環境変数を参照可能).
+# - PyInstaller は INFO ログを stderr に出す癖がある。PowerShell は
+#   stderr 出力を NativeCommandError 扱いするので、ErrorActionPreference
+#   を Continue にして $LASTEXITCODE で正規判定する.
 build_script:
   - ps: |
-      $exeName = "WorkScope"
-      if ($env:CUSTOMER_NAME) {
-        $buildDate = Get-Date -Format 'yyyyMMdd'
-        # PyInstaller の --name には日本語も渡せるが、Windows Defender 警告を
-        # 増やさないため ASCII safe な形にも変換できるオプションを残す。
-        # ここでは原則そのまま渡す。
-        $exeName = "WorkScope_$($env:CUSTOMER_NAME)_$buildDate"
+      $ErrorActionPreference = "Continue"
+
+      Write-Host "================================================="
+      Write-Host " Building main EXE (CUSTOMER_NAME='$env:CUSTOMER_NAME')"
+      Write-Host "================================================="
+      pyinstaller pyinstaller.spec --noconfirm --clean --log-level WARN 2>&1 | Out-Host
+      if ($LASTEXITCODE -ne 0) {
+        Write-Error "PyInstaller (main) failed with exit code $LASTEXITCODE"
+        exit $LASTEXITCODE
       }
-      Write-Host "Building EXE: $exeName"
-      pyinstaller pyinstaller.spec --noconfirm --clean --name $exeName
 
       # smoke_test.exe も同時ビルド (配布物に同梱するため)
       if (Test-Path smoke_test.spec) {
-        Write-Host "Building SmokeTest EXE..."
-        pyinstaller smoke_test.spec --noconfirm --clean
+        Write-Host "================================================="
+        Write-Host " Building SmokeTest EXE"
+        Write-Host "================================================="
+        pyinstaller smoke_test.spec --noconfirm --clean --log-level WARN 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "PyInstaller (smoke_test) failed with exit code $LASTEXITCODE"
+          exit $LASTEXITCODE
+        }
       }
+
+      # 生成された EXE を一覧表示 (デバッグ用)
+      Write-Host "=== dist/ contents ==="
+      Get-ChildItem dist\*.exe | Format-Table Name, Length
 
 # ============================================================
 # after_build: 配布物を release-stage にまとめて zip 化
 # ============================================================
 after_build:
   - ps: |
-      # ビルドされた本体EXEを探す
+      $ErrorActionPreference = "Continue"
+
+      # ビルドされた本体EXEを探す (CUSTOMER_NAME 有無で名前変化)
       $mainExe = Get-ChildItem dist\WorkScope*.exe |
                  Where-Object { $_.Name -notlike "*SmokeTest*" } |
                  Select-Object -First 1
       if (-not $mainExe) {
         Write-Error "Main EXE was not produced by PyInstaller"
+        Write-Host "=== dist/ contents (debug) ==="
+        Get-ChildItem dist\* -ErrorAction SilentlyContinue | Format-Table Name, Length
         exit 1
       }
       Get-Item $mainExe.FullName | Format-List Name, Length, LastWriteTime
