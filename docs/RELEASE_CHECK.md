@@ -4,8 +4,8 @@
 
 | Check | Status | Critical | Detail |
 |---|---|---|---|
-| pytest_all | ✅ | yes | 320 passed in 5.65s |
-| pii_safety_tests | ✅ | yes | ============================== 6 passed in 0.99s =============================== |
+| pytest_all | ✅ | yes | 349 passed in 1.99s |
+| pii_safety_tests | ✅ | yes | ============================== 6 passed in 0.25s =============================== |
 | profiles_valid | ✅ | yes | 12 profiles validated |
 | required_files | ✅ | yes | all 16 files present |
 | app_rules | ✅ | yes | 8 categories: ['saas_web', 'saas_desktop', 'erp', 'industry_medical', 'industry_accounting', 'office', 'browser', 'dev'] |

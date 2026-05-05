@@ -19,7 +19,7 @@ import json
 import re
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List
 
 from .scorer import AutomationCandidate
 
@@ -151,19 +151,57 @@ def generate_playwright(c: AutomationCandidate, task_name: str) -> str:
 
 # ---- Claude Computer Use エージェント生成 ------------------------------
 
-def generate_computer_use(c: AutomationCandidate, task_name: str) -> str:
-    """Claude Computer Use 向けのエージェント定義を JSON で生成."""
+# Codex High#6: Computer Use 生成物のPII再マスク + 過剰権限削除
+# pattern.pattern にタイトルの生PIIが残っているケースに備え、生成時に再マスクする。
+_GEN_PII_PATTERNS = (
+    re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),                  # email
+    re.compile(r"0\d{1,4}[-(]?\d{1,4}[-)]?\d{3,4}"),          # phone
+    re.compile(r"(?<!\d)\d{4}[-\s]?\d{4}[-\s]?\d{4}(?!\d)"),  # my_number
+    re.compile(r"[一-鿿々]{2,5}\s?(?:様|さん|殿|氏)"),         # honorific name
+)
+
+
+def _scrub_pii(text: str) -> str:
+    """生成物 (system_prompt 等) に紛れ込んだ PII を除去."""
+    out = text
+    for pat in _GEN_PII_PATTERNS:
+        out = pat.sub("[MASKED]", out)
+    return out
+
+
+def generate_computer_use(c: AutomationCandidate, task_name: str,
+                          extra_tools: list[str] | None = None) -> str:
+    """Claude Computer Use 向けのエージェント定義を JSON で生成.
+
+    Codex High#6 対応:
+    - tools のデフォルトは ["computer"] のみ。bash/text_editor は extra_tools で
+      明示承認時のみ追加（過剰権限防止）.
+    - pattern.pattern と system_prompt に紛れ込んだ PII を生成前に再マスク.
+    """
+    # PII 再マスクされたパターン文字列
+    safe_pattern = [_scrub_pii(s) for s in c.pattern.pattern]
+
+    tools = ["computer"]
+    if extra_tools:
+        # 明示承認されたツールのみ許可
+        allowed_extras = {"bash", "text_editor"}
+        for t in extra_tools:
+            if t in allowed_extras and t not in tools:
+                tools.append(t)
+
+    safe_task_name = _scrub_pii(task_name)
+
     agent = {
-        "name": task_name,
-        "description": f"WorkScope analyzer 自動生成: {' → '.join(c.pattern.pattern)}",
+        "name": safe_task_name,
+        "description": f"WorkScope analyzer 自動生成: {' → '.join(safe_pattern)}",
         "model": "claude-opus-4-7",
-        "tools": ["computer", "bash", "text_editor"],
-        "system_prompt": (
-            f"あなたは「{task_name}」業務を自動実行するエージェントです。\n"
-            f"観測された操作シーケンス: {' → '.join(c.pattern.pattern)}\n"
+        "tools": tools,
+        "system_prompt": _scrub_pii(
+            f"あなたは「{safe_task_name}」業務を自動実行するエージェントです。\n"
+            f"観測された操作シーケンス: {' → '.join(safe_pattern)}\n"
             f"アプリカテゴリ: {c.pattern.app_category}\n\n"
             "以下の手順を順次実行してください:\n"
-            + "\n".join(f"{i+1}. {s} 画面を開く" for i, s in enumerate(c.pattern.pattern))
+            + "\n".join(f"{i+1}. {s} 画面を開く" for i, s in enumerate(safe_pattern))
             + "\n\nエラー発生時は人間にエスカレーションしてください。"
         ),
         "max_iterations": 30,
@@ -173,6 +211,7 @@ def generate_computer_use(c: AutomationCandidate, task_name: str) -> str:
             "monthly_savings_yen": c.monthly_savings_yen,
             "rationale": c.rationale,
         },
+        "_note": "tools=['computer'] のみ最小権限で生成。bash/text_editor が必要な場合は --extra-tools で明示承認.",
     }
     return json.dumps(agent, ensure_ascii=False, indent=2)
 

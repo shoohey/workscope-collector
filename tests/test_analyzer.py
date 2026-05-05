@@ -350,5 +350,81 @@ def test_full_pipeline_with_jsonl(tmp_path: Path) -> None:
     assert "テスト顧客" in html_str
 
 
+# ============================================================================
+# Codex High#6: Computer Use 生成物の最小権限 + PII 再マスク
+# ============================================================================
+
+def test_computer_use_default_tools_only_computer() -> None:
+    """tools のデフォルトは ['computer'] のみ. bash/text_editor は付かない."""
+    c = AutomationCandidate(
+        pattern=RepeatedPattern("other", ("A", "B", "C", "D"), 3, 5000, 15000),
+        score=40.0, monthly_minutes=15, monthly_savings_yen=750,
+        rpa_target="computer_use", automation_kind="agent",
+    )
+    js = generate_computer_use(c, "task")
+    parsed = json.loads(js)
+    assert parsed["tools"] == ["computer"]
+    assert "bash" not in parsed["tools"]
+    assert "text_editor" not in parsed["tools"]
+
+
+def test_computer_use_extra_tools_explicit_opt_in() -> None:
+    """extra_tools で明示承認した bash/text_editor のみ追加可."""
+    c = AutomationCandidate(
+        pattern=RepeatedPattern("other", ("A", "B"), 3, 1000, 3000),
+        score=10.0, monthly_minutes=5, monthly_savings_yen=250,
+        rpa_target="computer_use", automation_kind="agent",
+    )
+    js = generate_computer_use(c, "task", extra_tools=["bash"])
+    parsed = json.loads(js)
+    assert "bash" in parsed["tools"]
+    # text_editor は許可してないので付かない
+    assert "text_editor" not in parsed["tools"]
+
+
+def test_computer_use_rejects_unknown_extra_tools() -> None:
+    """allowlist 外のツール名は無視される (権限漏洩防止)."""
+    c = AutomationCandidate(
+        pattern=RepeatedPattern("other", ("A",), 3, 1000, 3000),
+        score=10.0, monthly_minutes=5, monthly_savings_yen=250,
+        rpa_target="computer_use", automation_kind="agent",
+    )
+    js = generate_computer_use(c, "task", extra_tools=["bash", "evil_shell", "rm_rf"])
+    parsed = json.loads(js)
+    assert parsed["tools"] == ["computer", "bash"]
+    assert "evil_shell" not in parsed["tools"]
+
+
+def test_computer_use_scrubs_pii_from_pattern() -> None:
+    """pattern に紛れ込んだ PII (メール/電話/敬称付き氏名) は生成物から除去."""
+    c = AutomationCandidate(
+        pattern=RepeatedPattern(
+            "other",
+            ("受付 鈴木太郎 様", "電話 090-1234-5678", "user@example.com 確認"),
+            3, 1000, 3000,
+        ),
+        score=10.0, monthly_minutes=5, monthly_savings_yen=250,
+        rpa_target="computer_use", automation_kind="agent",
+    )
+    js = generate_computer_use(c, "task")
+    # 元のPII値が一切含まれていない
+    assert "鈴木太郎" not in js
+    assert "090-1234-5678" not in js
+    assert "user@example.com" not in js
+
+
+def test_computer_use_scrubs_pii_from_task_name() -> None:
+    """task_name に PII (敬称付き氏名) が紛れ込んでも除去される."""
+    c = AutomationCandidate(
+        pattern=RepeatedPattern("other", ("A",), 3, 1000, 3000),
+        score=10.0, monthly_minutes=5, monthly_savings_yen=250,
+        rpa_target="computer_use", automation_kind="agent",
+    )
+    js = generate_computer_use(c, "鈴木太郎 様 業務")
+    parsed = json.loads(js)
+    assert "鈴木太郎" not in parsed["name"]
+    assert "鈴木太郎" not in js
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
