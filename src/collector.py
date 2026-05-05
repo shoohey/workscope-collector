@@ -111,6 +111,34 @@ except Exception:
     OCRBox = None  # type: ignore
     OCREngine = None  # type: ignore
 
+# v1.0: アプリ自動分類 + UI Automation + キーストロークロガー
+try:
+    from app_classifier import classify as _classify_app  # type: ignore
+    _HAS_APP_CLASSIFIER = True
+except Exception:
+    _classify_app = None  # type: ignore
+    _HAS_APP_CLASSIFIER = False
+
+try:
+    from uia_capture import get_focused_control as _get_focused_control  # type: ignore
+    _HAS_UIA = True
+except Exception:
+    _get_focused_control = None  # type: ignore
+    _HAS_UIA = False
+
+try:
+    from input_events import InputEventLogger, KeyEvent, MouseEvent, resolve_click_target  # type: ignore
+    _HAS_INPUT_EVENTS = True
+except Exception:
+    InputEventLogger = None  # type: ignore
+    KeyEvent = None  # type: ignore
+    MouseEvent = None  # type: ignore
+    resolve_click_target = None  # type: ignore
+    _HAS_INPUT_EVENTS = False
+
+
+SCHEMA_VERSION = 2
+
 
 # ---- ウィンドウ情報取得 --------------------------------------------------
 
@@ -612,7 +640,36 @@ class Collector:
         _path: Path | None,
     ) -> dict[str, Any]:
         title_masked, title_hash, title_categories = mask_window_title(info.title)
+
+        # v1.0: アプリ自動分類（業務フロー解析・RPA出口振り分けの基準）
+        app_category = ""
+        rpa_target = ""
+        if _HAS_APP_CLASSIFIER and _classify_app is not None:
+            try:
+                cls = _classify_app(
+                    process_name=info.process_name,
+                    process_path=info.process_path,
+                    window_title=info.title,
+                )
+                app_category = cls.category
+                rpa_target = cls.rpa_target
+            except Exception:
+                logger.exception("app classification failed")
+
+        # v1.0: UI Automation でフォーカス中コントロール取得（Win32実機のみ実動）
+        focused_control = None
+        if _HAS_UIA and _get_focused_control is not None:
+            try:
+                fc = _get_focused_control(hwnd=info.hwnd, timeout_ms=200)
+                if fc is not None:
+                    focused_control = fc.to_dict()
+                    # PII保護: パスワード入力中の状態を保存（input_events のゲートに使用）
+                    self._password_field_active = bool(fc.is_password)
+            except Exception:
+                logger.exception("UIA focused control failed")
+
         event: dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION,
             "session_id": self._session_id,
             "event_seq": self._next_seq(),
             "ts": iso_ts(),
@@ -621,6 +678,8 @@ class Collector:
                 "process_name": info.process_name,
                 "process_path": info.process_path,
                 "pid": info.pid,
+                "category": app_category,
+                "rpa_target": rpa_target,
             },
             "window": {
                 "title": title_masked,
@@ -630,6 +689,7 @@ class Collector:
                 "rect": list(info.rect),
                 "monitor": info.monitor,
             },
+            "focused_control": focused_control,
             "dwell_ms_prev": dwell_ms_prev,
             "screenshot": screenshot,
             "transition_from_app": prev_proc,
@@ -639,6 +699,123 @@ class Collector:
         except Exception:
             logger.exception("event append failed")
         return event
+
+    # ---- v1.0: 入力イベント (key_typed/key_combo/mouse_click) 取り込み ----
+
+    def is_password_field_active(self) -> bool:
+        """直近の UIA 取得結果からパスワードフィールドにフォーカスがあるかを返す.
+
+        InputEventLogger に渡して、パスワード入力中はキーロギング自体を停止させる用途。
+        """
+        return getattr(self, "_password_field_active", False)
+
+    def feed_key_event(self, ev: Any) -> dict[str, Any] | None:
+        """KeyEvent を受け取って JSONL に書く.
+
+        InputEventLogger からのコールバックとして使う。直接呼ばれてもよい。
+        """
+        if ev is None:
+            return None
+        try:
+            data = ev.to_dict() if hasattr(ev, "to_dict") else dict(ev)
+        except Exception:
+            logger.exception("key event payload conversion failed")
+            return None
+        out: dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION,
+            "session_id": self._session_id,
+            "event_seq": self._next_seq(),
+            "ts": iso_ts(),
+            "event_type": data.get("event_type", "key_typed"),
+            "input": data,
+            "app_focus_hwnd": getattr(self._focus, "hwnd", 0),
+        }
+        try:
+            self._events.append(out)
+        except Exception:
+            logger.exception("key event append failed")
+        return out
+
+    def feed_mouse_event(self, ev: Any, ocr_boxes: list | None = None) -> dict[str, Any] | None:
+        """MouseEvent を受け取って JSONL に書く. ocr_boxes があればクリック対象推定."""
+        if ev is None:
+            return None
+        try:
+            data = ev.to_dict() if hasattr(ev, "to_dict") else dict(ev)
+        except Exception:
+            logger.exception("mouse event payload conversion failed")
+            return None
+
+        # クリック対象推定（マスカー通過後のテキストのみ）
+        if ocr_boxes and resolve_click_target is not None and not data.get("target_text_masked"):
+            try:
+                from masker import mask_image  # noqa: F401  # マスカー利用可能性確認
+                from masker import DEFAULT_RULES  # type: ignore
+                # 簡易マスカー: 文字列1つを評価したい
+                from masker import _classify_box  # type: ignore[attr-defined]
+
+                def _mask(text: str) -> str:
+                    # OCRBoxラッパーを作って分類
+                    # strict=False: クリック対象はボタン名/ラベルが多いので、
+                    # 「漢字2-5文字」の過剰マスク(name_like_kanji)を避ける。
+                    # context-free な高信頼ルール(メアド/電話/敬称付き氏名等)は
+                    # strict=False でも発火するのでPII漏洩リスクは維持される。
+                    if OCRBox is None:
+                        return text
+                    box = OCRBox(text=text, bbox=(0, 0, 1, 1), confidence=1.0)
+                    cats, _ = _classify_box(box, set(), DEFAULT_RULES, False, ())
+                    if cats:
+                        return f"[MASKED:{cats[0]}]"
+                    return text
+
+                target = resolve_click_target(tuple(data["coords"]), ocr_boxes, mask_func=_mask)
+                data["target_text_masked"] = target
+            except Exception:
+                logger.exception("click target resolve failed")
+
+        out: dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION,
+            "session_id": self._session_id,
+            "event_seq": self._next_seq(),
+            "ts": iso_ts(),
+            "event_type": "mouse_click",
+            "input": data,
+            "app_focus_hwnd": getattr(self._focus, "hwnd", 0),
+        }
+        try:
+            self._events.append(out)
+        except Exception:
+            logger.exception("mouse event append failed")
+        return out
+
+    def start_input_logger(self) -> bool:
+        """InputEventLogger を起動. ライブラリ無し環境では False を返す."""
+        if not _HAS_INPUT_EVENTS or InputEventLogger is None:
+            logger.info("InputEventLogger unavailable (Mac/Linux or libs missing)")
+            return False
+        try:
+            self._input_logger = InputEventLogger(
+                on_key=self.feed_key_event,
+                on_mouse=self.feed_mouse_event,
+                is_password_field_active=self.is_password_field_active,
+            )
+            if not self._input_logger.available:
+                return False
+            self._input_logger.start()
+            logger.info("InputEventLogger started")
+            return True
+        except Exception:
+            logger.exception("InputEventLogger start failed")
+            return False
+
+    def stop_input_logger(self) -> None:
+        il = getattr(self, "_input_logger", None)
+        if il is not None:
+            try:
+                il.stop()
+            except Exception:
+                logger.exception("InputEventLogger stop failed")
+            self._input_logger = None
 
 
 __all__ = [

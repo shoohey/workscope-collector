@@ -29,8 +29,17 @@ _SRC = Path(__file__).resolve().parent
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from config import APP_NAME, app_data_dir, load_config, logs_dir  # noqa: E402
+from config import APP_NAME, app_data_dir, load_config, logs_dir, CUSTOMER_NAME, DEFAULT_PROFILE, UPLOAD_ENDPOINT  # noqa: E402
 from version import __version__  # noqa: E402
+
+# v1.0: 同意ゲート (consent_signed.json が無ければダイアログ → 同意 or 終了)
+try:
+    from consent import ensure_consent_or_exit, is_consented  # type: ignore
+    _HAS_CONSENT = True
+except Exception:
+    _HAS_CONSENT = False
+    ensure_consent_or_exit = None  # type: ignore
+    is_consented = None  # type: ignore
 
 
 logger = logging.getLogger("workscope")
@@ -275,6 +284,22 @@ def main() -> int:
     if not lock.acquire():
         # トレイダイアログを出すと余計に混乱するので、ログのみで終了
         return 2
+
+    # v1.0: 同意ゲート（同意書なしではデータ収集を絶対に開始しない）
+    if _HAS_CONSENT and ensure_consent_or_exit is not None:
+        try:
+            consented = ensure_consent_or_exit(
+                customer_name=CUSTOMER_NAME or "",
+                industry_profile=DEFAULT_PROFILE or "",
+                upload_endpoint=UPLOAD_ENDPOINT or "",
+            )
+        except Exception:
+            logger.exception("consent gate raised; treating as not-consented")
+            consented = False
+        if not consented:
+            logger.warning("consent denied or canceled; exiting")
+            lock.release()
+            return 3
 
     # 設定
     try:
