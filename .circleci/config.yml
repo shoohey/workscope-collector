@@ -114,6 +114,7 @@ jobs:
             Copy-Item dist/WorkScope.exe -Destination $stage/
             if (Test-Path installer) {
               Get-ChildItem installer -Filter *.bat | Copy-Item -Destination $stage/
+              Get-ChildItem installer -Filter *.ps1 -ErrorAction SilentlyContinue | Copy-Item -Destination $stage/
               if (Test-Path installer/README_install.txt) {
                 Copy-Item installer/README_install.txt -Destination $stage/
               }
