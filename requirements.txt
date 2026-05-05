@@ -15,7 +15,9 @@ numpy==1.26.4
 opencv-python-headless==4.9.0.80
 
 # OCR (Japanese, fully offline once models are downloaded)
-paddlepaddle==2.6.0
+# paddlepaddle 2.6.0 was yanked; 2.6.2+ are the only available wheels
+# Stay within 2.6.x range; paddleocr 2.7.3 is compatible with paddle 2.6.x
+paddlepaddle>=2.6.2,<2.7
 paddleocr==2.7.3
 
 # Tray icon UI
