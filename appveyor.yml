@@ -1,0 +1,71 @@
+# AppVeyor: WorkScope Collector の Windows EXE ビルド
+#
+# 第四のフォールバック CI。AppVeyor は Windows ビルドが本業で、
+# public プロジェクトに対しては完全無料・無制限。
+# GitHub OAuth で連携し、CircleCI/Actions と独立に動作する。
+
+image: Visual Studio 2022
+
+environment:
+  PYTHON: "C:\\Python311-x64"
+  PYTHON_VERSION: "3.11"
+
+# キャッシュ: pip + PaddleOCR モデル
+cache:
+  - C:\Users\appveyor\AppData\Local\pip\Cache -> requirements.txt
+  - C:\Users\appveyor\.paddleocr -> requirements.txt
+
+# trigger
+branches:
+  only:
+    - main
+
+skip_tags: false
+
+install:
+  - SET PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
+  - python --version
+  - python -m pip install --upgrade pip wheel setuptools
+  - pip install -r requirements.txt
+  - pip list
+
+build_script:
+  - pyinstaller pyinstaller.spec --noconfirm --clean
+
+after_build:
+  - ps: |
+      if (-Not (Test-Path "dist\WorkScope.exe")) {
+        Write-Error "dist/WorkScope.exe was not produced by PyInstaller"
+        exit 1
+      }
+      Get-Item dist\WorkScope.exe | Format-List Name, Length, LastWriteTime
+
+      $stage = "release-stage"
+      New-Item -ItemType Directory -Force -Path $stage | Out-Null
+      Copy-Item dist\WorkScope.exe -Destination $stage\
+
+      if (Test-Path installer) {
+        Get-ChildItem installer -Filter *.bat | Copy-Item -Destination $stage\
+        if (Test-Path installer\README_install.txt) {
+          Copy-Item installer\README_install.txt -Destination $stage\
+        }
+      }
+
+      if (Test-Path docs) {
+        $htmls = Get-ChildItem docs -Filter *.html -ErrorAction SilentlyContinue
+        if ($htmls) {
+          $htmls | Copy-Item -Destination $stage\
+        }
+      }
+
+      Write-Host "=== Staged files ==="
+      Get-ChildItem $stage | Format-Table Name, Length
+
+      $sha = $env:APPVEYOR_REPO_COMMIT.Substring(0, 7)
+      $zipName = "workscope-collector-windows-$sha.zip"
+      Compress-Archive -Path "$stage\*" -DestinationPath $zipName -Force
+      Write-Host "Created: $zipName"
+
+artifacts:
+  - path: workscope-collector-windows-*.zip
+    name: workscope-collector-windows
