@@ -20,6 +20,7 @@ APP_VERSION = "0.1.0"
 DEFAULT_PROFILE = ""
 CUSTOMER_NAME = ""
 UPLOAD_ENDPOINT = ""
+UPLOAD_API_KEY = ""
 
 
 def app_data_dir() -> Path:
@@ -81,6 +82,14 @@ class CollectorConfig:
     # 業界プロファイル: "pharmacy" / "accounting" / "legal" / "sales" / "hr" / "generic"
     # 空文字の場合は profile_loader.get_default_profile_name() がフォールバック解決
     industry_profile: str = ""
+
+    # クラウドアップロード設定（uploader.py が使用）
+    # 空文字なら uploader 起動しない (USB回収モード)
+    upload_enabled: bool = False
+    upload_interval_hours: float = 24.0
+    upload_quiet_hours_only: bool = True  # 営業時間外のみ送信
+    upload_max_retry: int = 5
+    upload_max_archive_mb: int = 200
 
     # Storage
     keep_screenshots_days: int = 30

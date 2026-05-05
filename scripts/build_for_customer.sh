@@ -24,6 +24,7 @@ set -euo pipefail
 CUSTOMER=""
 INDUSTRY=""
 ENDPOINT=""
+API_KEY=""
 OUTPUT=""
 
 usage() {
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
         --customer) CUSTOMER="$2"; shift 2;;
         --industry) INDUSTRY="$2"; shift 2;;
         --endpoint) ENDPOINT="$2"; shift 2;;
+        --api-key)  API_KEY="$2"; shift 2;;
         --output)   OUTPUT="$2"; shift 2;;
         -h|--help)  usage;;
         *) echo "Unknown option: $1" >&2; usage;;
@@ -94,7 +96,7 @@ done
 CONFIG="$REPO_ROOT/src/config.py"
 CONFIG_BACKUP="$(mktemp)"
 cp "$CONFIG" "$CONFIG_BACKUP"
-echo "[2/5] inject CUSTOMER_NAME / DEFAULT_PROFILE / UPLOAD_ENDPOINT"
+echo "[2/5] inject CUSTOMER_NAME / DEFAULT_PROFILE / UPLOAD_ENDPOINT / UPLOAD_API_KEY"
 python3 - <<PY
 import re
 p = "$CONFIG"
@@ -102,8 +104,9 @@ src = open(p, encoding="utf-8").read()
 src = re.sub(r'^DEFAULT_PROFILE = ".*"', 'DEFAULT_PROFILE = "$INDUSTRY"', src, flags=re.M)
 src = re.sub(r'^CUSTOMER_NAME = ".*"', f'CUSTOMER_NAME = "$CUSTOMER"', src, flags=re.M)
 src = re.sub(r'^UPLOAD_ENDPOINT = ".*"', f'UPLOAD_ENDPOINT = "$ENDPOINT"', src, flags=re.M)
+src = re.sub(r'^UPLOAD_API_KEY = ".*"', f'UPLOAD_API_KEY = "$API_KEY"', src, flags=re.M)
 open(p, "w", encoding="utf-8").write(src)
-print("  injected config:", "$INDUSTRY", "$CUSTOMER", "$ENDPOINT")
+print("  injected config: industry=$INDUSTRY customer=$CUSTOMER endpoint=$ENDPOINT api_key=" + ("***" if "$API_KEY" else "<none>"))
 PY
 
 # --- 3. 同意書テンプレート置換 ---

@@ -29,7 +29,7 @@ _SRC = Path(__file__).resolve().parent
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from config import APP_NAME, app_data_dir, load_config, logs_dir, CUSTOMER_NAME, DEFAULT_PROFILE, UPLOAD_ENDPOINT  # noqa: E402
+from config import APP_NAME, app_data_dir, load_config, logs_dir, CUSTOMER_NAME, DEFAULT_PROFILE, UPLOAD_ENDPOINT, UPLOAD_API_KEY  # noqa: E402
 from version import __version__  # noqa: E402
 
 # v1.0: 同意ゲート (consent_signed.json が無ければダイアログ → 同意 or 終了)
@@ -40,6 +40,14 @@ except Exception:
     _HAS_CONSENT = False
     ensure_consent_or_exit = None  # type: ignore
     is_consented = None  # type: ignore
+
+# v1.0: クラウドアップロードスケジューラ (UPLOAD_ENDPOINT + UPLOAD_API_KEY が両方あれば起動)
+try:
+    from uploader import UploadScheduler  # type: ignore
+    _HAS_UPLOADER = True
+except Exception:
+    _HAS_UPLOADER = False
+    UploadScheduler = None  # type: ignore
 
 
 logger = logging.getLogger("workscope")
@@ -312,6 +320,25 @@ def main() -> int:
     # Collector
     collector, _collector_thread = _start_collector(config)
 
+    # v1.0: クラウドアップロードスケジューラ起動 (config 設定 or ビルド埋め込みエンドポイントが両方あれば)
+    upload_endpoint = UPLOAD_ENDPOINT or ""
+    upload_key = UPLOAD_API_KEY or ""
+    upload_sched = None
+    if _HAS_UPLOADER and getattr(config, "upload_enabled", False) and upload_endpoint and upload_key:
+        try:
+            upload_sched = UploadScheduler(
+                endpoint=upload_endpoint,
+                api_key=upload_key,
+                interval_hours=getattr(config, "upload_interval_hours", 24.0),
+                quiet_hours_only=getattr(config, "upload_quiet_hours_only", True),
+                max_retry=getattr(config, "upload_max_retry", 5),
+                max_archive_mb=getattr(config, "upload_max_archive_mb", 200),
+            )
+            upload_sched.start()
+        except Exception:
+            logger.exception("UploadScheduler start failed; continuing in USB mode")
+            upload_sched = None
+
     # Tray (メインスレッド)
     from tray import Tray  # 遅延 import: PIL 依存で初期化が重い
     tray = Tray(collector=collector, config=config)
@@ -346,6 +373,11 @@ def main() -> int:
             tray.stop()
         except Exception:
             pass
+        if upload_sched is not None:
+            try:
+                upload_sched.stop()
+            except Exception:
+                pass
         lock.release()
         logger.info("==== %s Collector exited ====", APP_NAME)
 
