@@ -45,13 +45,14 @@ except Exception:
 class FocusedControl:
     """フォーカス中コントロールのスナップショット.
 
-    PII保護: value は呼び出し側のマスカー通過後にセットされる。生値は保持しない。
+    PII保護 (Codex High#3 対応): name と parent_path もマスカー通過後の値を保存する。
+    Value は同様にマスカー通過後のみ。生のテキストは to_dict() に出ない。
     """
     automation_id: str = ""
-    name: str = ""
+    name: str = ""                   # マスカー通過後（apply_masks_to_focused_control 経由）
     control_type: str = ""
     class_name: str = ""
-    parent_path: list[str] = field(default_factory=list)  # 親要素3階層分のName
+    parent_path: list[str] = field(default_factory=list)  # 各要素もマスカー通過後
     is_password: bool = False
     value_masked: str | None = None  # マスカー通過後のみ
     value_present: bool = False      # 元値が存在したか（マスクで全部消えても判別用）
@@ -60,6 +61,20 @@ class FocusedControl:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         return d
+
+
+def _password_hint_in_metadata(automation_id: str, name: str, control_type: str,
+                                class_name: str) -> bool:
+    """UI Automation 取得値にパスワードフィールドの手がかりがあるか.
+
+    Codex High#2 のフォールバック: IsPassword が False でも、
+    automation_id/name/control_type/class_name のいずれかに password らしい
+    文字列が含まれていれば pasword 扱いにする。
+    """
+    haystack = " ".join(s.lower() for s in (automation_id, name, control_type, class_name) if s)
+    indicators = ("password", "passwd", "pwd", "pass_", "passwordbox",
+                   "パスワード", "暗証番号", "暗証", "pincode", "pin_code")
+    return any(ind in haystack for ind in indicators)
 
 
 # ---- バックエンド: uiautomation -------------------------------------------
@@ -249,6 +264,34 @@ def attach_masked_value(control: FocusedControl, raw_value: str,
     return control
 
 
+def apply_masks_to_focused_control(control: FocusedControl, mask_func) -> FocusedControl:
+    """name / parent_path にマスカーを適用 (Codex High#3 対応).
+
+    UI Automation の Name や親要素名には患者氏名・保険番号・薬歴見出し等が
+    入ることがある。OCR画像と同じマスカーを通すことで PII の生残りを防ぐ。
+    mask_func 失敗時は該当フィールドを空文字に倒す（安全側）。
+    また password ヒント検知でフォールバック的に is_password=True を立てる。
+    """
+    # is_password フォールバック判定
+    if not control.is_password and _password_hint_in_metadata(
+        control.automation_id, control.name, control.control_type, control.class_name
+    ):
+        control.is_password = True
+
+    def _safe_mask(text: str) -> str:
+        if not text:
+            return ""
+        try:
+            return mask_func(text)
+        except Exception:
+            logger.exception("mask_func raised in apply_masks_to_focused_control")
+            return ""
+
+    control.name = _safe_mask(control.name)
+    control.parent_path = [_safe_mask(p) for p in control.parent_path]
+    return control
+
+
 def is_uia_available() -> bool:
     """このプラットフォームで UI Automation が使えるか."""
     return _HAS_UIAUTOMATION or _HAS_PYWINAUTO
@@ -258,5 +301,6 @@ __all__ = [
     "FocusedControl",
     "get_focused_control",
     "attach_masked_value",
+    "apply_masks_to_focused_control",
     "is_uia_available",
 ]

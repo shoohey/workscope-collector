@@ -150,5 +150,62 @@ def test_password_field_no_value_leakage(password_value: str) -> None:
                 f"PII LEAK: password slice '{slice_}' leaked into value_masked={masked_str}"
 
 
+# ---- 10. Codex High#3: name / parent_path のマスク ---------------------
+
+def test_apply_masks_to_focused_control_masks_name_and_parents() -> None:
+    from uia_capture import apply_masks_to_focused_control  # type: ignore
+
+    fc = FocusedControl(
+        name="鈴木太郎",
+        parent_path=["佐藤花子の薬歴", "メイン"],
+    )
+    masked_fc = apply_masks_to_focused_control(
+        fc, mask_func=lambda s: f"[MASKED:test]" if s in ("鈴木太郎", "佐藤花子の薬歴") else s,
+    )
+    assert masked_fc.name == "[MASKED:test]"
+    assert masked_fc.parent_path[0] == "[MASKED:test]"
+    assert masked_fc.parent_path[1] == "メイン"
+
+
+def test_apply_masks_drops_field_when_mask_func_raises() -> None:
+    from uia_capture import apply_masks_to_focused_control  # type: ignore
+
+    fc = FocusedControl(name="鈴木太郎", parent_path=["佐藤"])
+
+    def _bad(_s: str) -> str:
+        raise RuntimeError("mask error")
+
+    masked_fc = apply_masks_to_focused_control(fc, mask_func=_bad)
+    assert masked_fc.name == ""
+    assert masked_fc.parent_path == [""]
+
+
+# ---- 11. Codex High#2: パスワードヒント検知でフォールバック is_password=True ---
+
+def test_password_hint_detection_in_metadata() -> None:
+    from uia_capture import apply_masks_to_focused_control  # type: ignore
+
+    fc = FocusedControl(automation_id="passwordBox1",
+                        name="パスワード",
+                        is_password=False)  # 元は False
+    masked_fc = apply_masks_to_focused_control(fc, mask_func=lambda s: s)
+    # password ヒントを検知して is_password=True に上がる
+    assert masked_fc.is_password is True
+
+
+def test_password_hint_japanese() -> None:
+    from uia_capture import apply_masks_to_focused_control  # type: ignore
+    fc = FocusedControl(name="暗証番号", is_password=False)
+    masked_fc = apply_masks_to_focused_control(fc, mask_func=lambda s: s)
+    assert masked_fc.is_password is True
+
+
+def test_no_password_hint_keeps_false() -> None:
+    from uia_capture import apply_masks_to_focused_control  # type: ignore
+    fc = FocusedControl(name="患者名", control_type="Edit", is_password=False)
+    masked_fc = apply_masks_to_focused_control(fc, mask_func=lambda s: s)
+    assert masked_fc.is_password is False
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

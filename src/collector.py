@@ -140,6 +140,30 @@ except Exception:
 SCHEMA_VERSION = 2
 
 
+def _mask_text_with_default_profile(text: str) -> str:
+    """テキスト1個をデフォルトプロファイルでマスクするヘルパ.
+
+    OCRBox を1つ生成してマスカーに通し、PII カテゴリにマッチすれば
+    [MASKED:<category>] に置換、マッチしなければ原文を返す。
+    Codex High#3 の UIA name/parent_path マスク経路で使用。
+    """
+    if not text:
+        return ""
+    try:
+        from masker import _classify_box, DEFAULT_RULES  # type: ignore[attr-defined]
+        if OCRBox is None:
+            return text
+        box = OCRBox(text=text, bbox=(0, 0, 1, 1), confidence=1.0)
+        # strict=False: フィールド名/親要素名はラベルが多いので過剰マスク回避
+        cats, _ = _classify_box(box, set(), DEFAULT_RULES, False, ())
+        if cats:
+            return f"[MASKED:{cats[0]}]"
+        return text
+    except Exception:
+        logger.exception("_mask_text_with_default_profile failed")
+        return text
+
+
 # ---- ウィンドウ情報取得 --------------------------------------------------
 
 @dataclass
@@ -657,13 +681,24 @@ class Collector:
                 logger.exception("app classification failed")
 
         # v1.0: UI Automation でフォーカス中コントロール取得（Win32実機のみ実動）
+        # Codex High#2: 各 window_focus で stale 解消のため一旦 False に戻す。
+        #              UIA 成功時のみ True にする。UIA 失敗時はパスワード状態は不明として False。
+        # Codex High#3: name/parent_path もマスカー経由化する。
+        self._password_field_active = False
         focused_control = None
         if _HAS_UIA and _get_focused_control is not None:
             try:
                 fc = _get_focused_control(hwnd=info.hwnd, timeout_ms=200)
                 if fc is not None:
+                    # name/parent_path をマスカー通過させる (PII保護)
+                    try:
+                        from uia_capture import apply_masks_to_focused_control  # type: ignore
+                        fc = apply_masks_to_focused_control(fc, _mask_text_with_default_profile)
+                    except Exception:
+                        logger.exception("apply_masks_to_focused_control failed; dropping name/parent")
+                        fc.name = ""
+                        fc.parent_path = []
                     focused_control = fc.to_dict()
-                    # PII保護: パスワード入力中の状態を保存（input_events のゲートに使用）
                     self._password_field_active = bool(fc.is_password)
             except Exception:
                 logger.exception("UIA focused control failed")

@@ -141,6 +141,13 @@ class InputEventLogger:
             self._start_keyboard()
         else:
             logger.warning("InputEventLogger: no keyboard/pynput available; noop")
+        # Codex High#1: 文字キー桁数の定期 flush スレッドを起動
+        # 文字入力後にナビキーを押さなくても、_flush_after 秒経過で flush する
+        if self._kb_thread is None and (_HAS_PYNPUT or _HAS_KEYBOARD):
+            self._kb_thread = threading.Thread(
+                target=self._flush_loop, name="ws-input-flush", daemon=True
+            )
+            self._kb_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
@@ -157,6 +164,23 @@ class InputEventLogger:
         self._kb_listener = None
         self._mouse_listener = None
         self._flush_text_count(force=True)
+        # join: スレッドが flush_after 秒以内に終了する想定
+        if self._kb_thread is not None:
+            try:
+                self._kb_thread.join(timeout=max(self._flush_after * 2, 2.0))
+            except Exception:
+                pass
+            self._kb_thread = None
+
+    def _flush_loop(self) -> None:
+        """定期 flush ループ: _last_text_key_ts から _flush_after 秒経過したら flush."""
+        check_interval = max(0.5, self._flush_after / 2.0)
+        while not self._stop.wait(check_interval):
+            with self._lock:
+                last_ts = self._last_text_key_ts
+                count = self._text_keys_count
+            if count > 0 and last_ts > 0 and (time.time() - last_ts) >= self._flush_after:
+                self._flush_text_count()
 
     # --- バックエンド: pynput ------------------------------------------
     def _start_pynput(self) -> None:
