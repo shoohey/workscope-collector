@@ -396,6 +396,18 @@ class Collector:
             logger.exception("initial cleanup failed")
         self._watcher.start()
 
+    def run(self) -> None:
+        """Collector をブロッキングで実行する（main.py のスレッドエントリポイント）.
+
+        ``start()`` で WindowChangeWatcher を起動した後、``stop()`` が呼ばれる
+        まで待機する。WindowChangeWatcher 自身は daemon スレッドで動くため、
+        この while ループはアプリ終了時の cleanup フックとしての役割。
+        """
+        self.start()
+        while not self._stop.is_set():
+            self._stop.wait(1.0)
+        logger.info("Collector.run loop exited")
+
     def stop(self) -> None:
         logger.info("Collector stop session=%s", self._session_id)
         self._stop.set()
