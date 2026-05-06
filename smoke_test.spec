@@ -27,6 +27,17 @@ a = Analysis(
     datas=_data_files,
     hiddenimports=[
         'PIL._tkinter_finder',
+        # SmokeTest が直接は使わないが、check_windows_bindings() で
+        # import を試すため、本体と同じ Windows 依存を同梱しておく.
+        'win32gui',
+        'win32process',
+        'win32con',
+        'win32api',
+        'pywintypes',
+        'mss',
+        'mss.tools',
+        'psutil',
+        'psutil._pswindows',
     ],
     hookspath=[],
     hooksconfig={},

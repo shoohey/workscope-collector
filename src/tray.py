@@ -150,30 +150,49 @@ def _confirm_quit() -> bool:
     )
 
 
+# Windows MessageBox フラグ定数
+# pystray のメニューコールバック内から MessageBox を呼ぶと、Z order の問題で
+# トレイメニュー or 他のウィンドウの背面に隠れてしまう既知の問題があるため、
+# MB_TOPMOST + MB_SETFOREGROUND で必ず最前面に出す.
+_MB_OK = 0x00
+_MB_OKCANCEL = 0x01
+_MB_ICONQUESTION = 0x20
+_MB_ICONINFORMATION = 0x40
+_MB_TOPMOST = 0x40000       # 最前面表示 (z-order)
+_MB_SETFOREGROUND = 0x10000  # フォアグラウンド化
+_IDOK = 1
+
+
 def _windows_confirm(message: str, title: str) -> bool:
-    """Windows MessageBox の OK/Cancel 確認. 非Windowsは True 返却."""
+    """Windows MessageBox の OK/Cancel 確認. 非Windowsは True 返却.
+
+    背面に隠れて消えない問題対策に MB_TOPMOST + MB_SETFOREGROUND を必ず付与。
+    """
     if sys.platform == "win32":
         try:
             import ctypes
-            MB_OKCANCEL = 0x01
-            MB_ICONQUESTION = 0x20
-            IDOK = 1
             ret = ctypes.windll.user32.MessageBoxW(
-                0, message, title, MB_OKCANCEL | MB_ICONQUESTION,
+                0, message, title,
+                _MB_OKCANCEL | _MB_ICONQUESTION | _MB_TOPMOST | _MB_SETFOREGROUND,
             )
-            return ret == IDOK
+            return ret == _IDOK
         except Exception:
             logger.exception("MessageBoxW failed; treating as confirmed")
     return True
 
 
 def _windows_info(message: str, title: str) -> None:
-    """Windows MessageBox の情報表示. 非Windowsはログ出力."""
+    """Windows MessageBox の情報表示. 非Windowsはログ出力.
+
+    背面に隠れて消えない問題対策に MB_TOPMOST + MB_SETFOREGROUND を必ず付与。
+    """
     if sys.platform == "win32":
         try:
             import ctypes
-            MB_ICONINFORMATION = 0x40
-            ctypes.windll.user32.MessageBoxW(0, message, title, MB_ICONINFORMATION)
+            ctypes.windll.user32.MessageBoxW(
+                0, message, title,
+                _MB_OK | _MB_ICONINFORMATION | _MB_TOPMOST | _MB_SETFOREGROUND,
+            )
             return
         except Exception:
             logger.exception("MessageBoxW(info) failed")
@@ -412,13 +431,15 @@ class Tray:
             ),
             MenuItem(
                 "収集状況を表示",
-                lambda _icon, _item: _on_show_status(self),
+                lambda _icon, _item: threading.Thread(
+                    target=_on_show_status, args=(self,), daemon=True).start(),
             ),
             Menu.SEPARATOR,
             # v1.0: クラウドアップロード関連
             MenuItem(
                 "今すぐクラウドへ送信",
-                lambda _icon, _item: _on_upload_now(self),
+                lambda _icon, _item: threading.Thread(
+                    target=_on_upload_now, args=(self,), daemon=True).start(),
                 visible=lambda _i: self._upload_scheduler is not None
                 and getattr(self._upload_scheduler, "configured", False),
             ),
@@ -442,15 +463,18 @@ class Tray:
             # v1.0: 撤回・データ削除（PII保護の権利行使）
             MenuItem(
                 "収集データを削除",
-                lambda _icon, _item: _on_delete_local_data(self),
+                lambda _icon, _item: threading.Thread(
+                    target=_on_delete_local_data, args=(self,), daemon=True).start(),
             ),
             MenuItem(
                 "同意を撤回して終了",
-                lambda _icon, _item: _on_revoke_consent(self),
+                lambda _icon, _item: threading.Thread(
+                    target=_on_revoke_consent, args=(self,), daemon=True).start(),
             ),
             MenuItem(
                 "完全に終了",
-                lambda _icon, _item: self._on_quit(),
+                lambda _icon, _item: threading.Thread(
+                    target=self._on_quit, daemon=True).start(),
             ),
         )
 

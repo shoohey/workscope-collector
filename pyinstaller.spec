@@ -66,6 +66,33 @@ a = Analysis(
         'PIL._tkinter_finder',
         'paddleocr',
         'paddle',
+        # Windows 専用: collector.py / capture_active() で使用
+        # 条件付き import (try/except) のため PyInstaller の依存解析で漏れがち.
+        # 大森薬局でのスクショ取得失敗を踏まえて明示同梱.
+        'win32gui',
+        'win32process',
+        'win32con',
+        'win32api',
+        'pywintypes',
+        'pythoncom',
+        'mss',
+        'mss.tools',
+        'mss.windows',
+        'psutil',
+        'psutil._pswindows',
+        # uia_capture.py で使用 (オプショナルだが入れておく)
+        'uiautomation',
+        'pywinauto',
+        # input_events.py で使用
+        'pynput',
+        'pynput.keyboard',
+        'pynput.mouse',
+        'pynput.keyboard._win32',
+        'pynput.mouse._win32',
+        # consent.py の tkinter 同意ダイアログ用
+        'tkinter',
+        'tkinter.scrolledtext',
+        'tkinter.messagebox',
     ],
     hookspath=[],
     hooksconfig={},
