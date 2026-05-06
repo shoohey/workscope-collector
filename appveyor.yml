@@ -230,11 +230,14 @@ after_build:
       Write-Host "=== Staged files ==="
       Get-ChildItem $stage | Format-Table Name, Length
 
-      # zip 化: 顧客別なら customer 名入りファイル名
+      # zip 化: EXE名 (既に ASCII safe 化済) を流用して命名
+      # CUSTOMER_NAME が UTF-8 文字化けで '?' になっていても、EXE名は
+      # pyinstaller.spec の _ascii_safe_customer_name() でハッシュ化済みなので、
+      # それをそのまま zip 名にも使う. これで Windows ファイル名禁止文字を回避.
       $sha = $env:APPVEYOR_REPO_COMMIT.Substring(0, 7)
+      $exeBaseName = $mainExe.BaseName  # 例: WorkScope_custe94f0bfa_20260506
       if ($env:CUSTOMER_NAME) {
-        $buildDate = Get-Date -Format 'yyyyMMdd'
-        $zipName = "WorkScope_$($env:CUSTOMER_NAME)_${buildDate}_$sha.zip"
+        $zipName = "${exeBaseName}_$sha.zip"
       } else {
         $zipName = "workscope-collector-windows-$sha.zip"
       }
