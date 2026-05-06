@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>業務スクリーン記録ツール 利用同意書 v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #f5f7fa;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #1a1a2e;
+    line-height: 1.8;
+    font-size: 11pt;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 16px auto;
+    padding: 18mm 18mm;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 22pt;
+    color: #1e3a5f;
+    text-align: center;
+    margin-bottom: 6mm;
+    letter-spacing: 0.02em;
+  }
+  .lead {
+    color: #4a5568;
+    margin-bottom: 6mm;
+    font-size: 10.5pt;
+  }
+  h2 {
+    font-family: 'Inter', 'Noto Sans JP', sans-serif;
+    font-weight: 800;
+    font-size: 13pt;
+    color: #1e3a5f;
+    margin: 7mm 0 3mm;
+    padding-left: 8px;
+    border-left: 4px solid #1e3a5f;
+  }
+  ul, ol {
+    margin: 0 0 4mm 6mm;
+  }
+  li {
+    margin-bottom: 1.5mm;
+    font-size: 10.5pt;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-right: 6px;
+  }
+  .badge-collect { background: #fff4e6; color: #975a16; border: 1px solid #f0c896; }
+  .badge-not-collect { background: #e7f3ec; color: #276749; border: 1px solid #aed4bb; }
+  .badge-new { background: #fce4ec; color: #c5174e; border: 1px solid #f8a4be; }
+  .label {
+    font-size: 9pt;
+    color: #4a5568;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .placeholder {
+    color: #c53030;
+    font-weight: 700;
+  }
+  .meta-box {
+    background: #f5f7fa;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4mm 5mm;
+    margin: 4mm 0;
+    font-size: 10pt;
+    color: #4a5568;
+  }
+  .version-tag {
+    display: inline-block;
+    background: #1e3a5f;
+    color: white;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 9pt;
+    font-weight: 700;
+    margin-left: 6px;
+  }
+  .important-note {
+    background: #fff8dc;
+    border-left: 4px solid #975a16;
+    padding: 3mm 5mm;
+    margin: 4mm 0;
+    font-size: 10pt;
+  }
+  .sign-area {
+    margin-top: 10mm;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6mm;
+  }
+  .sign-row {
+    display: flex;
+    gap: 6mm;
+    margin-bottom: 5mm;
+  }
+  .sign-cell {
+    flex: 1;
+    border-bottom: 1px solid #1a1a2e;
+    padding: 0 3mm 1mm;
+    min-height: 14mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .sign-cell .label { margin-bottom: 1mm; }
+  .footer-note {
+    margin-top: 6mm;
+    font-size: 9pt;
+    color: #4a5568;
+    text-align: center;
+  }
+  .delivery-mode {
+    background: #e8f0f9;
+    border: 1px solid #b8d4ed;
+    border-radius: 8px;
+    padding: 3mm 5mm;
+    margin: 3mm 0;
+    font-size: 10pt;
+  }
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #ffffff; }
+    .page { box-shadow: none; margin: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="label" style="text-align:center;">CONSENT FORM <span class="version-tag">v1.0</span></div>
+  <h1>業務スクリーン記録ツール 利用同意書</h1>
+
+  <p class="lead">
+    導入先: <span class="placeholder">大森薬局</span>（以下「当社」または「当薬局」といいます）は、
+    業務の棚卸しおよび業務自動化（RPA・AIエージェント化）の検討を目的として、業務用PC上で「WorkScope Collector v1.0」（以下「本ツール」）を運用します。
+    本書面は、本ツールが収集する情報、収集しない情報、ご本人の権利等について明示し、ご理解のうえご署名をいただくためのものです。
+    本書面は本ツールのバージョン v1.0 における同意書です。<strong>v0.1.0 までで取得していなかった「フィールド情報」「キーストローク種別」を新たに記録対象に加えています</strong>のでご注意ください。
+  </p>
+
+  <h2>1. 本ツールが収集する情報</h2>
+  <ul>
+    <li><span class="badge badge-collect">収集</span>アクティブウィンドウのスクリーンショット（個人情報マスキング処理済み・端末内で黒塗り）</li>
+    <li><span class="badge badge-collect">収集</span>ウィンドウタイトル（マスキング処理済み）</li>
+    <li><span class="badge badge-collect">収集</span>使用アプリケーション名・操作時刻・各画面の滞在時間</li>
+    <li><span class="badge badge-collect badge-new">v1.0新規</span><strong>フォーカス中の入力フィールド情報</strong>（「数量入力欄」「保存ボタン」のような UI 要素のラベル・識別子・階層）。値は同様にマスキングを通したうえで、PIIが含まれる場合は黒塗り済みのみ記録します。</li>
+    <li><span class="badge badge-collect badge-new">v1.0新規</span><strong>キーストロークの種別</strong>: Tab / Enter / F1〜F12 / Ctrl・Shift・Alt の組み合わせなど操作キーの種類。文字キーは「何文字打ったか」の桁数のみで、入力された文字そのものは一切記録しません。</li>
+    <li><span class="badge badge-collect badge-new">v1.0新規</span><strong>マウスクリックの座標と対象</strong>: クリック位置と、その近傍にあった画面要素（ボタン名等、マスキング処理済み）。</li>
+  </ul>
+
+  <h2>2. 本ツールが収集しない情報</h2>
+  <ul>
+    <li><span class="badge badge-not-collect">非収集</span><strong>キーボード入力された文字そのもの</strong>（patient_name や金額など、入力された文字列の中身は一切記録しません。種別と桁数のみ）</li>
+    <li><span class="badge badge-not-collect">非収集</span>パスワード入力中の操作（IsPassword 属性のフィールドにフォーカスがある間は、本ツールは<strong>キーロギング自体を完全停止</strong>します。タスクトレイのアイコンが赤色に変わります）</li>
+    <li><span class="badge badge-not-collect">非収集</span>クリップボードの内容</li>
+    <li><span class="badge badge-not-collect">非収集</span>マイク音声・カメラ映像</li>
+    <li><span class="badge badge-not-collect">非収集</span>マスキング処理前のオリジナルスクリーンショット（メモリ上で黒塗りした後、ファイルとして保存することなく即座に破棄します）</li>
+  </ul>
+
+  <h2>3. 個人情報の取り扱い・マスキング</h2>
+  <ul>
+    <li>患者氏名・保険者番号・患者ID・生年月日・電話番号・住所・郵便番号・マイナンバー・メールアドレス等は、<strong>端末内で自動マスキング</strong>（黒塗り）されます。</li>
+    <li>マスキングは PaddleOCR（オフライン日本語OCR）と業界別ルール（薬局向けプロファイル）により行われ、<strong>判断不能な場合は安全側に倒して画像自体を破棄</strong>します。</li>
+    <li>マスキング処理前の生データは、ディスク・送信先・ログのいずれにも残しません。これは自動テストで継続的に検証されています。</li>
+    <li>マスキングが失敗した可能性のあるスクリーンショットは <code>unmaskable_suspected=true</code> として記録され、本ツールの設計により<strong>送信・保存されません</strong>。</li>
+  </ul>
+
+  <h2>4. データ保管・送信先</h2>
+  <div class="delivery-mode">
+    <strong>本ツールの配信方式</strong>: <span class="placeholder">（USB回収）</span><br>
+    上記が「USB回収」または空欄の場合、データは端末外に送信されません。<br>
+    上記がURLの場合、暗号化通信（HTTPS/TLS）で当社の解析サーバーへアップロードされます。
+  </div>
+  <ul>
+    <li><strong>ローカル保管</strong>: <code>%APPDATA%\WorkScope\data\</code> 配下にマスク済みPNG（30日）と構造化イベント（90日）。期間経過後は自動削除されます。</li>
+    <li><strong>クラウドアップロード</strong>（有効化されている場合のみ）:
+      <ul>
+        <li>送信は<strong>営業時間外</strong>（夜間）に行われ、業務影響を回避します。</li>
+        <li>通信はすべて TLS 1.2 以上で暗号化されます。</li>
+        <li>送信先サーバーでは顧客ごとに分離された保存領域に格納し、当該顧客の管理者および当社の解析担当者のみがアクセスできます。</li>
+        <li>送信は<strong>当ツールが既に黒塗り済みのデータのみ</strong>を対象とし、生のスクリーンショットや入力文字は送信パスに乗りません。</li>
+      </ul>
+    </li>
+    <li>データの取扱いは、当社の<strong>個人情報保護方針およびデータ取扱方針</strong>（同梱の data_handling_policy.html）に従います。</li>
+  </ul>
+
+  <h2>5. あなたの権利</h2>
+  <ol>
+    <li><strong>一時停止する権利</strong>: タスクトレイのアイコンから1クリックで録画を一時停止できます（緑●→グレー●）。</li>
+    <li><strong>同意を撤回する権利</strong>: タスクトレイから「同意を撤回」を選択することで、即座に記録停止 + ローカルデータの削除請求が発行されます。一度同意した後でも、いつでも書面・操作いずれの方法でも撤回できます。</li>
+    <li><strong>アンインストールする権利</strong>: いつでも本ツールを完全にアンインストールできます。同梱の <code>uninstall.cmd</code> で <code>%APPDATA%\WorkScope</code> も含め全消去されます。</li>
+    <li><strong>開示・削除を請求する権利</strong>: ご自身に関する収集データの開示請求および削除請求が可能です。下記連絡先までご連絡ください。</li>
+    <li><strong>不利益取扱の禁止</strong>: 撤回や請求によって、勤務上の不利益な扱いを受けることは一切ありません。</li>
+  </ol>
+
+  <h2>6. 利用目的</h2>
+  <ul>
+    <li>業務全体の棚卸し、および反復作業の特定によるRPA・AIエージェント化の検討</li>
+    <li>業務効率化に資する分析・改善提案書の作成</li>
+    <li><strong>個人の人事評価・勤務評価には一切使用しません。</strong>収集したデータは個人を特定しない形で集計され、業務単位（業務名・頻度・所要時間）で分析されます。</li>
+  </ul>
+
+  <h2>7. データ保管期間</h2>
+  <div class="meta-box">
+    <strong>端末内ローカル</strong><br>
+    　イベントログ（操作時刻・アプリ名・キー種別等）: <strong>90日間</strong>保管後に自動削除<br>
+    　マスク済みスクリーンショット: <strong>30日間</strong>保管後に自動削除<br>
+    <br>
+    <strong>クラウド側</strong>（有効化されている場合のみ）<br>
+    　受信したアップロードデータ: <strong>業務改善提案書納品から3ヶ月後</strong>に自動削除<br>
+    　ただし、削除請求があった場合はそれより早く削除します。
+  </div>
+
+  <h2>8. 重要な注意事項</h2>
+  <div class="important-note">
+    <strong>v1.0 で追加された記録項目について</strong><br>
+    本ツールは v1.0 で「フィールド情報」「キーストローク種別」「クリック対象」を新たに記録対象に加えました。これらは入力業務の自動化（RPA化）に必要なメタ情報を取得するためのもので、<strong>キーボード入力された文字そのものは引き続き記録しません</strong>。パスワードフィールドにフォーカスしている間は、キーロギング自体が一時停止されます。
+  </div>
+
+  <h2>9. 同意の確認</h2>
+  <p style="font-size:10.5pt;">
+    上記内容を確認し、本ツール v1.0 による業務記録に同意します。
+  </p>
+
+  <div class="sign-area">
+    <div class="sign-row">
+      <div class="sign-cell">
+        <span class="label">氏名（自署）</span>
+      </div>
+      <div class="sign-cell" style="max-width: 60mm;">
+        <span class="label">署名日</span>
+      </div>
+    </div>
+    <div class="sign-row">
+      <div class="sign-cell">
+        <span class="label">所属（薬局名・部署）</span>
+      </div>
+      <div class="sign-cell" style="max-width: 60mm;">
+        <span class="label">役職</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    開示請求・削除請求・お問い合わせ: <span class="placeholder">[連絡先メールアドレス・電話番号]</span><br>
+    本書面の控えは、署名後ご本人にもお渡しいたします。<br>
+    本同意書バージョン: v1.0 / ビルド日: <span class="placeholder">20260506</span>
+  </p>
+</div>
+</body>
+</html>
