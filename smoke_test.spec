@@ -16,9 +16,10 @@ for _p in glob.glob(os.path.join('docs', '*.html')):
     _data_files.append((_p, 'docs'))
 for _p in glob.glob(os.path.join('profiles', '*.json')):
     _data_files.append((_p, 'profiles'))
-# src/app_rules.json も同梱
+# src/app_rules.json も同梱 (_MEIPASS 直下に配置. app_classifier が
+# _MEIPASS/app_rules.json を探すため)
 if os.path.exists('src/app_rules.json'):
-    _data_files.append(('src/app_rules.json', 'src'))
+    _data_files.append(('src/app_rules.json', '.'))
 
 a = Analysis(
     ['scripts/smoke_test.py'],

@@ -56,6 +56,11 @@ for _p in glob.glob(os.path.join('docs', '*.html')):
 for _p in glob.glob(os.path.join('profiles', '*.json')):
     _doc_files.append((_p, 'profiles'))
 
+# app_rules.json 同梱（app_classifier が sys._MEIPASS/app_rules.json を参照）
+# 大森薬局検証で _MEIPASS 直下に置くべきと判明 (元は _MEIPASS/src/ に置いていた)
+if os.path.exists('src/app_rules.json'):
+    _doc_files.append(('src/app_rules.json', '.'))
+
 a = Analysis(
     ['src/main.py'],
     pathex=['src'],
@@ -93,6 +98,21 @@ a = Analysis(
         'tkinter',
         'tkinter.scrolledtext',
         'tkinter.messagebox',
+        # PaddleOCR の隠れた依存 (大森薬局検証で 'No module named jaraco' で
+        # 初期化失敗が判明). PaddleOCR → setuptools → jaraco 系の連鎖で必要.
+        'jaraco',
+        'jaraco.text',
+        'jaraco.functools',
+        'jaraco.collections',
+        'jaraco.context',
+        'pkg_resources',
+        'pkg_resources.extern',
+        'pkg_resources._vendor',
+        'pkg_resources._vendor.jaraco',
+        'pkg_resources._vendor.jaraco.text',
+        'pkg_resources._vendor.jaraco.functools',
+        'pkg_resources._vendor.platformdirs',
+        'pkg_resources._vendor.packaging',
     ],
     hookspath=[],
     hooksconfig={},
