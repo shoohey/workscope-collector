@@ -600,10 +600,17 @@ class Collector:
             return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
         # ---- OCR + マスキング ----
-        # 失敗時の安全側挙動:
-        #   strict マスキング前の生スクショを絶対にディスクに残さない。
-        #   drop_image_if_unmaskable=True なら画像なしのメタイベントのみ書く。
+        # raw_capture_mode=True (USB回収前提・既定) の場合、OCR/マスクの
+        # いずれの失敗経路でもスクショを破棄せず保存する。
+        # raw_capture_mode=False の場合は v1.0 までの strict ドロップ挙動を維持。
+        raw_mode = bool(self._cfg.raw_capture_mode)
+
         if not _HAS_MASKER:
+            if raw_mode:
+                return self._save_unmasked(
+                    info, img, prev_proc, dwell_ms_prev, now,
+                    degraded_reason="masker_unavailable",
+                )
             logger.error("masker module unavailable; refusing to save raw screenshot")
             return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
@@ -613,12 +620,29 @@ class Collector:
             mr = mask_image(img, ocr_boxes, strict=bool(self._cfg.mask_strict_mode))
         except Exception:
             logger.exception("mask_image failed")
-            if self._cfg.drop_image_if_unmaskable:
-                logger.warning("drop image because mask_image raised")
-                return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            if raw_mode:
+                return self._save_unmasked(
+                    info, img, prev_proc, dwell_ms_prev, now,
+                    degraded_reason="mask_exception",
+                )
             return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
         if mr.unmaskable and self._cfg.drop_image_if_unmaskable:
+            if raw_mode:
+                logger.warning(
+                    "unmaskable content suspected (boxes=%d) but raw_capture_mode=True"
+                    " -> save partially-masked image (text summary suppressed)",
+                    len(ocr_boxes),
+                )
+                # Codex P2 対応: ここで normal path に fall-through すると、
+                # mr.text_summary に未分類boxの本文が verbatim で残り、JSONLに
+                # 疑わしいPIIテキストが書かれる。そのため _save_unmasked 経由で
+                # 「画像は mr.masked_image (部分黒塗り済) を保存、ただしテキスト要約は
+                # 出力しない」という degraded 扱いに揃える。
+                return self._save_unmasked(
+                    info, mr.masked_image, prev_proc, dwell_ms_prev, now,
+                    degraded_reason="unmaskable",
+                )
             logger.warning(
                 "unmaskable content suspected (boxes=%d, mask_count=%d); drop image",
                 len(ocr_boxes),
@@ -626,10 +650,13 @@ class Collector:
             )
             return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
 
-        # OCR が完全に空（パドル未導入 等）の場合、テキストが読めていないので
-        # 「マスクすべきか判定できない」状態。strict + drop_image_if_unmaskable
-        # の組み合わせならスクショは保存しない（メタのみ残す）。
+        # OCR が完全に空（パドル未導入 等）の場合、テキストが読めていない。
         if not ocr_boxes and self._cfg.mask_strict_mode and self._cfg.drop_image_if_unmaskable:
+            if raw_mode:
+                return self._save_unmasked(
+                    info, img, prev_proc, dwell_ms_prev, now,
+                    degraded_reason="ocr_empty",
+                )
             logger.warning(
                 "OCR returned 0 boxes in strict mode; drop image (metadata-only event)"
             )
@@ -652,6 +679,45 @@ class Collector:
             "mask_applied_count": int(mr.mask_count),
             "mask_categories": list(mr.mask_categories),
             "unmaskable_suspected": bool(mr.unmaskable),
+            "degraded_reason": None,
+        }
+        return self._write_event(info, prev_proc, dwell_ms_prev, ss_payload, saved.path)
+
+    def _save_unmasked(
+        self,
+        info: WindowInfo,
+        img: "Image.Image",
+        prev_proc: str,
+        dwell_ms_prev: int,
+        now: float,
+        degraded_reason: str,
+    ) -> dict[str, Any] | None:
+        """raw_capture_mode 用: OCR/マスク失敗時に生画像を保存する.
+
+        USB回収前提でPII漏洩リスクは手元検査で担保。JSONLには degraded_reason を
+        必ず記録し、解析側でこのスクショは未マスクと識別できるようにする。
+        """
+        try:
+            saved = self._shots.save(img, session_id=self._session_id)
+            self._capture_times.append(now)
+        except Exception:
+            logger.exception("unmasked screenshot save failed")
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+
+        logger.warning(
+            "raw_capture_mode: saved UNMASKED screenshot (reason=%s, file=%s)",
+            degraded_reason, saved.filename,
+        )
+        ss_payload = {
+            "filename": saved.filename,
+            "width": saved.width,
+            "height": saved.height,
+            "ocr_text_summary": "",
+            "ocr_token_count": 0,
+            "mask_applied_count": 0,
+            "mask_categories": [],
+            "unmaskable_suspected": True,
+            "degraded_reason": degraded_reason,
         }
         return self._write_event(info, prev_proc, dwell_ms_prev, ss_payload, saved.path)
 

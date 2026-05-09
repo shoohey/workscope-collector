@@ -22,6 +22,10 @@ CUSTOMER_NAME = ""
 UPLOAD_ENDPOINT = ""
 UPLOAD_API_KEY = ""
 
+# ビルド時の raw_capture_mode 既定値（USB回収顧客向けビルドで True に書き換え）。
+# 安全側の既定は False。クラウドアップロード運用に切り替える顧客では絶対に True にしない。
+RAW_CAPTURE_MODE_DEFAULT: bool = False
+
 
 def app_data_dir() -> Path:
     base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
@@ -79,6 +83,22 @@ class CollectorConfig:
     mask_strict_mode: bool = True  # err on side of masking when in doubt
     drop_image_if_unmaskable: bool = True
 
+    # USB回収前提のデータ取得最優先モード（既定: False = 安全側）。
+    # True の場合、OCR が初期化失敗・0件返し・マスク例外・unmaskable 検出
+    # のいずれの経路でもスクショを破棄せず保存する。
+    # OCR が動いた場合はその結果で黒塗りマスクを適用、動かなかった場合は
+    # 生スクショ（マスク無し）を保存する。
+    #
+    # 有効化する経路は2通り（明示的な opt-in 必須）:
+    #   1. ビルド時: scripts/build_for_customer.sh --raw-capture で
+    #      RAW_CAPTURE_MODE_DEFAULT=True が _build_constants.py に焼き付けられる。
+    #   2. 運用時: %APPDATA%/WorkScope/config.json に "raw_capture_mode": true。
+    #
+    # PII 漏洩リスクは「USB物理回収＋手元目視検査＋同意書」で担保する前提。
+    # クラウド送信運用 (upload_enabled=True) と raw_capture_mode=True の併用は禁止。
+    # （load_config() で組み合わせを検出した場合は警告ログ + raw_capture_mode を強制 False に戻す）
+    raw_capture_mode: bool = False
+
     # 業界プロファイル: "pharmacy" / "accounting" / "legal" / "sales" / "hr" / "generic"
     # 空文字の場合は profile_loader.get_default_profile_name() がフォールバック解決
     industry_profile: str = ""
@@ -114,6 +134,11 @@ class CollectorConfig:
 def load_config() -> CollectorConfig:
     cfg_path = app_data_dir() / "config.json"
     cfg = CollectorConfig()
+
+    # ビルド時定数（_build_constants.py 経由で書き換わる RAW_CAPTURE_MODE_DEFAULT）
+    # を既定値として適用。config.json で明示的に上書き可能。
+    cfg.raw_capture_mode = bool(RAW_CAPTURE_MODE_DEFAULT)
+
     if cfg_path.exists():
         try:
             data = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -122,6 +147,18 @@ def load_config() -> CollectorConfig:
                     setattr(cfg, k, v)
         except (OSError, json.JSONDecodeError):
             pass
+
+    # 安全ガード: クラウドアップロード有効と raw_capture_mode=True の併用は禁止。
+    # この組み合わせは未マスクスクショがクラウドに送信されるリスクがあるため、
+    # 強制的に raw_capture_mode を False に戻す。
+    if cfg.upload_enabled and cfg.raw_capture_mode:
+        import logging
+        logging.getLogger(__name__).error(
+            "raw_capture_mode=True is forbidden when upload_enabled=True; "
+            "forcing raw_capture_mode=False to prevent unmasked PII from leaving the device"
+        )
+        cfg.raw_capture_mode = False
+
     return cfg
 
 

@@ -56,10 +56,13 @@ def _make_collector_with_stub_ocr(stub_boxes: list, **cfg_kwargs):
     import config as cfg_mod  # type: ignore
     import collector as collector_mod  # type: ignore
 
+    # 既存パイプラインテストは v1.0 までの strict 挙動を検証する内容なので、
+    # raw_capture_mode は明示的に False に固定（v1.1 で既定 True に変更）。
     base = {
         "min_dwell_seconds_for_capture": 0.0,
         "max_capture_per_minute": 120,
         "drop_image_if_unmaskable": False,
+        "raw_capture_mode": False,
     }
     base.update(cfg_kwargs)
     cfg = cfg_mod.CollectorConfig(**base)

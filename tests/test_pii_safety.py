@@ -55,9 +55,12 @@ def _make_collector(stub_boxes: list, **cfg_kwargs):
     import config as cfg_mod  # type: ignore
     import collector as collector_mod  # type: ignore
 
+    # PII漏洩テストは strict ドロップ挙動の検証なので、raw_capture_mode は
+    # 明示的に False を既定として固定する（v1.1 で既定 True に変わったため）。
     base = {
         "min_dwell_seconds_for_capture": 0.0,
         "max_capture_per_minute": 120,
+        "raw_capture_mode": False,
     }
     base.update(cfg_kwargs)
     cfg = cfg_mod.CollectorConfig(**base)
