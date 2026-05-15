@@ -94,6 +94,23 @@ def _open_with_os(path: Path) -> None:
         logger.exception("failed to open: %s", p)
 
 
+def _make_open_action(path: Path) -> Callable[[Any, Any], None]:
+    """pystray の MenuItem の action 用 closure factory.
+
+    なぜ factory か:
+        pystray の ``_assert_action`` がデフォルト引数付き lambda を
+        ``ValueError`` で拒否する（lambda は callable のはずだが、内部の
+        signature 検査で引数数が action 規約 ``(icon, item)`` と一致しない
+        ため）。一旦 named local function に包んで closure 化することで
+        引数数を厳密に 2 にして拒否回避する。
+
+    現地で 2026-05-15 に発覚した tray.run クラッシュループの恒久対策。
+    """
+    def _action(_icon: Any, _item: Any) -> None:
+        _open_with_os(path)
+    return _action
+
+
 def _format_session_time(start_ts: Optional[float]) -> str:
     if start_ts is None:
         return "--:--"
@@ -405,13 +422,7 @@ class Tray:
         else:
             for p in files:
                 label = f"{_short_ts_label(p.name)}  {p.name}"
-                # path をデフォルト引数で束縛して late binding 回避
-                recent_items.append(
-                    MenuItem(
-                        label,
-                        lambda _icon, _item, path=p: _open_with_os(path),
-                    )
-                )
+                recent_items.append(MenuItem(label, _make_open_action(p)))
         return Menu(*recent_items)
 
     def _build_menu(self) -> Any:
