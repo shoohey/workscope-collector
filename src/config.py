@@ -74,7 +74,13 @@ class CollectorConfig:
     max_capture_per_minute: int = 30  # safety cap
 
     # Screenshot
-    capture_active_monitor_only: bool = True
+    # False (デフォルト): 全物理モニターを個別にキャプチャし、フォーカス側を
+    #   event["screenshot"] に、他モニターを event["additional_screenshots"][] に格納。
+    #   マルチモニター環境（ノートPC＋外部モニター等）で「フォーカスしてない参照画面」
+    #   を取りこぼさないために導入（v1.0.1〜）。
+    # True: 従来挙動。フォーカス側1モニターだけをキャプチャ。シングルモニター環境や
+    #   ストレージ厳しい環境向けのオプトアウト用途。
+    capture_active_monitor_only: bool = False
     jpeg_quality: int = 70  # masked image quality
 
     # OCR / masking

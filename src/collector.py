@@ -264,7 +264,11 @@ def get_active_window_info() -> Optional[WindowInfo]:
 # ---- スクショ ------------------------------------------------------------
 
 def capture_active(info: WindowInfo | None = None) -> Optional["Image.Image"]:
-    """アクティブモニターのみをキャプチャして PIL.Image を返す."""
+    """アクティブモニターのみをキャプチャして PIL.Image を返す.
+
+    後方互換のため残置。フォーカス側1モニターだけを欲しい場合に使う。
+    マルチモニター環境で全画面を取りたい場合は ``capture_all_monitors`` を使う。
+    """
     if not _HAS_MSS or Image is None:
         logger.warning("capture_active: mss/Pillow unavailable")
         return None
@@ -279,6 +283,67 @@ def capture_active(info: WindowInfo | None = None) -> Optional["Image.Image"]:
     except Exception:
         logger.exception("capture_active failed")
         return None
+
+
+def capture_all_monitors(
+    info: WindowInfo | None = None,
+) -> list[tuple[int, "Image.Image"]]:
+    """物理モニターを全て個別にキャプチャして返す.
+
+    戻り値: ``[(monitor_index, PIL.Image), ...]``
+    - ``monitor_index`` は ``mss`` の 1始まり物理モニター番号
+      （``sct.monitors[0]`` は全モニター結合の仮想スクリーンなので除外）
+    - フォーカス側のモニターを先頭に並べ替えるので、JSONLの ``screenshot``
+      フィールドにはフォーカス側が入る
+    - mss/Pillow 不在環境（Mac開発・テスト）では ``capture_active`` に
+      フォールバックして1要素のリストを返す
+
+    マルチモニター環境（ノートPC＋外部モニター等）で「フォーカスしてない
+    参照画面（処方箋PDF、カルテ等）」を取りこぼさないために導入。
+    """
+    info = info or get_active_window_info()
+
+    def _fallback_single() -> list[tuple[int, "Image.Image"]]:
+        img = capture_active(info)
+        if img is None:
+            return []
+        idx = info.monitor if (info and info.monitor > 0) else 1
+        return [(idx, img)]
+
+    if not _HAS_MSS or Image is None:
+        # mss/Pillow 不在環境（Mac/テスト）: capture_active 経由でシングルモニター扱い
+        return _fallback_single()
+
+    out: list[tuple[int, "Image.Image"]] = []
+    try:
+        with mss.mss() as sct:
+            monitors = sct.monitors
+            # monitors[0] は全モニター結合仮想スクリーン → 物理モニターは 1..
+            physical = list(enumerate(monitors))[1:]
+            if not physical:
+                # 物理モニター列挙不能 → capture_active にフォールバック
+                return _fallback_single()
+
+            # フォーカス側を先頭に並べ替え（info.monitor が有効な物理 idx の時のみ）
+            focus_idx = info.monitor if (info and 0 < info.monitor < len(monitors)) else None
+            if focus_idx is not None:
+                physical.sort(key=lambda p: 0 if p[0] == focus_idx else 1)
+
+            for idx, mon in physical:
+                try:
+                    shot = sct.grab(mon)
+                    img = Image.frombytes("RGB", shot.size, shot.rgb)
+                    out.append((idx, img))
+                except Exception:
+                    logger.exception("capture_all_monitors: grab failed for monitor %d", idx)
+                    # 1枚失敗しても他のモニターは取り続ける
+                    continue
+            if not out:
+                return _fallback_single()
+            return out
+    except Exception:
+        logger.exception("capture_all_monitors failed")
+        return out or _fallback_single()
 
 
 # ---- ウィンドウ変化監視 --------------------------------------------------
@@ -593,87 +658,138 @@ class Collector:
             logger.warning("rate limit exceeded: skip")
             return None
 
-        # ---- キャプチャ ----
-        img = capture_active(info)
-        if img is None:
-            logger.warning("capture failed; emit metadata-only event")
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+        # ---- キャプチャ（マルチモニター対応） ----
+        # capture_active_monitor_only=True なら従来通りフォーカス側1枚のみ。
+        # False なら全物理モニターを個別にキャプチャ→各画面で OCR→マスク→保存。
+        # フォーカス側を必ず先頭に並べる（先頭が event["screenshot"] に入る）。
+        if bool(self._cfg.capture_active_monitor_only):
+            img = capture_active(info)
+            frames: list[tuple[int, "Image.Image"]] = (
+                [(info.monitor if info.monitor > 0 else 1, img)] if img is not None else []
+            )
+        else:
+            frames = capture_all_monitors(info)
 
-        # ---- OCR + マスキング ----
-        # raw_capture_mode=True (USB回収前提・既定) の場合、OCR/マスクの
-        # いずれの失敗経路でもスクショを破棄せず保存する。
-        # raw_capture_mode=False の場合は v1.0 までの strict ドロップ挙動を維持。
+        if not frames:
+            logger.warning("capture failed; emit metadata-only event")
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, [], None)
+
         raw_mode = bool(self._cfg.raw_capture_mode)
 
+        # 各画面をフル処理（OCR→マスク→保存）し、SS payload のリストを得る
+        payloads: list[dict[str, Any] | None] = []
+        for monitor_index, img in frames:
+            payload = self._process_one_capture(
+                info=info,
+                img=img,
+                monitor_index=monitor_index,
+                raw_mode=raw_mode,
+            )
+            payloads.append(payload)
+
+        # 全画面失敗 → metadata-only
+        if all(p is None for p in payloads):
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, [], None)
+
+        # 先頭（=フォーカス側）を主スクショ、残りを additional に
+        primary = payloads[0]
+        additional = [p for p in payloads[1:] if p is not None]
+
+        # 主スクショが None の場合は、最初の有効な追加スクショを主に昇格
+        if primary is None:
+            for i, p in enumerate(payloads[1:], start=1):
+                if p is not None:
+                    primary = p
+                    additional = [q for q in (payloads[1:i] + payloads[i + 1:]) if q is not None]
+                    break
+
+        # 主スクショ確定でレート制限カウントを1回だけ進める
+        self._capture_times.append(now)
+
+        return self._write_event(
+            info, prev_proc, dwell_ms_prev, primary, additional, None
+        )
+
+    def _process_one_capture(
+        self,
+        info: WindowInfo,
+        img: "Image.Image",
+        monitor_index: int,
+        raw_mode: bool,
+    ) -> dict[str, Any] | None:
+        """1モニター分の OCR→マスク→保存 を行い、screenshot payload を返す.
+
+        - 失敗時は ``None`` を返す（caller 側で metadata-only に降格判断）
+        - ``monitor_index`` は ``mss`` の 1始まり物理モニター番号で、
+          保存ファイル名に ``_mon{N}`` サフィックスとして記録される
+        - ``raw_mode`` が True のとき、OCR/マスク失敗経路でも生画像を保存する
+        """
         if not _HAS_MASKER:
             if raw_mode:
-                return self._save_unmasked(
-                    info, img, prev_proc, dwell_ms_prev, now,
-                    degraded_reason="masker_unavailable",
+                return self._save_unmasked_payload(
+                    img, monitor_index=monitor_index, degraded_reason="masker_unavailable"
                 )
-            logger.error("masker module unavailable; refusing to save raw screenshot")
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            logger.error(
+                "masker module unavailable; refusing to save raw screenshot (mon=%d)",
+                monitor_index,
+            )
+            return None
 
         ocr_boxes = self._run_ocr(img)
 
         try:
             mr = mask_image(img, ocr_boxes, strict=bool(self._cfg.mask_strict_mode))
         except Exception:
-            logger.exception("mask_image failed")
+            logger.exception("mask_image failed (mon=%d)", monitor_index)
             if raw_mode:
-                return self._save_unmasked(
-                    info, img, prev_proc, dwell_ms_prev, now,
-                    degraded_reason="mask_exception",
+                return self._save_unmasked_payload(
+                    img, monitor_index=monitor_index, degraded_reason="mask_exception"
                 )
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            return None
 
         if mr.unmaskable and self._cfg.drop_image_if_unmaskable:
             if raw_mode:
                 logger.warning(
-                    "unmaskable content suspected (boxes=%d) but raw_capture_mode=True"
+                    "unmaskable content suspected (mon=%d, boxes=%d) but raw_capture_mode=True"
                     " -> save partially-masked image (text summary suppressed)",
-                    len(ocr_boxes),
+                    monitor_index, len(ocr_boxes),
                 )
-                # Codex P2 対応: ここで normal path に fall-through すると、
-                # mr.text_summary に未分類boxの本文が verbatim で残り、JSONLに
-                # 疑わしいPIIテキストが書かれる。そのため _save_unmasked 経由で
-                # 「画像は mr.masked_image (部分黒塗り済) を保存、ただしテキスト要約は
-                # 出力しない」という degraded 扱いに揃える。
-                return self._save_unmasked(
-                    info, mr.masked_image, prev_proc, dwell_ms_prev, now,
-                    degraded_reason="unmaskable",
+                return self._save_unmasked_payload(
+                    mr.masked_image, monitor_index=monitor_index, degraded_reason="unmaskable"
                 )
             logger.warning(
-                "unmaskable content suspected (boxes=%d, mask_count=%d); drop image",
-                len(ocr_boxes),
-                mr.mask_count,
+                "unmaskable content suspected (mon=%d, boxes=%d, mask_count=%d); drop image",
+                monitor_index, len(ocr_boxes), mr.mask_count,
             )
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            return None
 
         # OCR が完全に空（パドル未導入 等）の場合、テキストが読めていない。
         if not ocr_boxes and self._cfg.mask_strict_mode and self._cfg.drop_image_if_unmaskable:
             if raw_mode:
-                return self._save_unmasked(
-                    info, img, prev_proc, dwell_ms_prev, now,
-                    degraded_reason="ocr_empty",
+                return self._save_unmasked_payload(
+                    img, monitor_index=monitor_index, degraded_reason="ocr_empty"
                 )
             logger.warning(
-                "OCR returned 0 boxes in strict mode; drop image (metadata-only event)"
+                "OCR returned 0 boxes in strict mode (mon=%d); drop image",
+                monitor_index,
             )
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            return None
 
-        # ---- 保存 ----
         try:
-            saved = self._shots.save(mr.masked_image, session_id=self._session_id)
-            self._capture_times.append(now)
+            saved = self._shots.save(
+                mr.masked_image,
+                session_id=self._session_id,
+                monitor_index=monitor_index,
+            )
         except Exception:
-            logger.exception("screenshot save failed")
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            logger.exception("screenshot save failed (mon=%d)", monitor_index)
+            return None
 
-        ss_payload = {
+        return {
             "filename": saved.filename,
             "width": saved.width,
             "height": saved.height,
+            "monitor_index": monitor_index,
             "ocr_text_summary": mr.text_summary,
             "ocr_token_count": len(ocr_boxes),
             "mask_applied_count": int(mr.mask_count),
@@ -681,37 +797,33 @@ class Collector:
             "unmaskable_suspected": bool(mr.unmaskable),
             "degraded_reason": None,
         }
-        return self._write_event(info, prev_proc, dwell_ms_prev, ss_payload, saved.path)
 
-    def _save_unmasked(
+    def _save_unmasked_payload(
         self,
-        info: WindowInfo,
         img: "Image.Image",
-        prev_proc: str,
-        dwell_ms_prev: int,
-        now: float,
+        monitor_index: int,
         degraded_reason: str,
     ) -> dict[str, Any] | None:
-        """raw_capture_mode 用: OCR/マスク失敗時に生画像を保存する.
-
-        USB回収前提でPII漏洩リスクは手元検査で担保。JSONLには degraded_reason を
-        必ず記録し、解析側でこのスクショは未マスクと識別できるようにする。
-        """
+        """raw_capture_mode 用: OCR/マスク失敗時に生画像を保存して payload を返す."""
         try:
-            saved = self._shots.save(img, session_id=self._session_id)
-            self._capture_times.append(now)
+            saved = self._shots.save(
+                img,
+                session_id=self._session_id,
+                monitor_index=monitor_index,
+            )
         except Exception:
-            logger.exception("unmasked screenshot save failed")
-            return self._write_event(info, prev_proc, dwell_ms_prev, None, None)
+            logger.exception("unmasked screenshot save failed (mon=%d)", monitor_index)
+            return None
 
         logger.warning(
-            "raw_capture_mode: saved UNMASKED screenshot (reason=%s, file=%s)",
-            degraded_reason, saved.filename,
+            "raw_capture_mode: saved UNMASKED screenshot (mon=%d, reason=%s, file=%s)",
+            monitor_index, degraded_reason, saved.filename,
         )
-        ss_payload = {
+        return {
             "filename": saved.filename,
             "width": saved.width,
             "height": saved.height,
+            "monitor_index": monitor_index,
             "ocr_text_summary": "",
             "ocr_token_count": 0,
             "mask_applied_count": 0,
@@ -719,7 +831,6 @@ class Collector:
             "unmaskable_suspected": True,
             "degraded_reason": degraded_reason,
         }
-        return self._write_event(info, prev_proc, dwell_ms_prev, ss_payload, saved.path)
 
     def _write_event(
         self,
@@ -727,7 +838,8 @@ class Collector:
         prev_proc: str,
         dwell_ms_prev: int,
         screenshot: dict[str, Any] | None,
-        _path: Path | None,
+        additional_screenshots: list[dict[str, Any]] | None = None,
+        _path: Path | None = None,
     ) -> dict[str, Any]:
         title_masked, title_hash, title_categories = mask_window_title(info.title)
 
@@ -793,6 +905,7 @@ class Collector:
             "focused_control": focused_control,
             "dwell_ms_prev": dwell_ms_prev,
             "screenshot": screenshot,
+            "additional_screenshots": list(additional_screenshots or []),
             "transition_from_app": prev_proc,
         }
         try:

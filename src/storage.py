@@ -157,15 +157,29 @@ class ScreenshotStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._jpeg_quality = int(jpeg_quality)
 
-    def save(self, image: "Image.Image", session_id: str | None = None) -> SavedScreenshot:
-        """PIL.Image を JPEG で保存して結果を返す."""
+    def save(
+        self,
+        image: "Image.Image",
+        session_id: str | None = None,
+        monitor_index: int | None = None,
+    ) -> SavedScreenshot:
+        """PIL.Image を JPEG で保存して結果を返す.
+
+        ``monitor_index`` を指定すると、ファイル名に ``_mon{N}`` サフィックスを付与し、
+        マルチモニター環境で各物理モニターのスクショを区別できるようにする
+        （N は mss の 1始まり物理モニター番号）。
+        ``None`` を渡した場合は従来通り ``{ts}_{short}.jpg``（後方互換）。
+        """
         if Image is None:
             raise RuntimeError("Pillow is not available")
         ts = filename_ts()
         # short hash: ファイル名衝突回避＋トレーサビリティ
-        seed = f"{ts}-{session_id or ''}-{os.getpid()}-{time.time_ns()}"
+        seed = f"{ts}-{session_id or ''}-{os.getpid()}-{time.time_ns()}-{monitor_index or 0}"
         short = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8]
-        filename = f"{ts}_{short}.jpg"
+        if monitor_index is None:
+            filename = f"{ts}_{short}.jpg"
+        else:
+            filename = f"{ts}_{short}_mon{int(monitor_index)}.jpg"
         path = self._dir / filename
         rgb = image.convert("RGB") if image.mode != "RGB" else image
         rgb.save(path, format="JPEG", quality=self._jpeg_quality, optimize=True)
