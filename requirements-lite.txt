@@ -20,10 +20,16 @@ mouse==0.7.1
 pystray==0.19.5
 Pillow==10.2.0           # pystray の依存（アイコン描画）
 
-# ---- Google Drive 直送（v1.1-lite 新規） ----
+# ---- Google Drive 直送（v1.1-lite 新規・OAuth Refresh Token方式） ----
+# v1.1-lite で SA から OAuth Refresh Token 方式に変更。
+# - google-auth: Credentials クラス (OAuth user account 認証) を提供
+# - google-auth-oauthlib: ビルド時 scripts/issue_refresh_token.py で
+#   InstalledAppFlow.run_local_server() を使うため必要
+# - google-api-python-client: Drive v3 クライアント
 google-api-python-client==2.149.0
 google-auth==2.34.0
 google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
 
 # ---- 設定・ログ・日時 ----
 pydantic==2.6.1

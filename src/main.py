@@ -39,7 +39,7 @@ try:
         UPLOAD_BACKEND,
         REMOTE_CONTROL_ENABLED,
         GDRIVE_FOLDER_ID,
-        GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+        GDRIVE_OAUTH_CREDENTIALS_B64,
         CUSTOMER_ID,
     )
 except Exception:
@@ -47,7 +47,7 @@ except Exception:
     UPLOAD_BACKEND = "supabase"
     REMOTE_CONTROL_ENABLED = False
     GDRIVE_FOLDER_ID = ""
-    GDRIVE_SERVICE_ACCOUNT_KEY_B64 = ""
+    GDRIVE_OAUTH_CREDENTIALS_B64 = ""
     CUSTOMER_ID = ""
 
 # v1.0: 同意ゲート (consent_signed.json が無ければダイアログ → 同意 or 終了)
@@ -370,13 +370,13 @@ def main() -> int:
         if (
             _HAS_GDRIVE_UPLOADER
             and GDRIVE_FOLDER_ID
-            and GDRIVE_SERVICE_ACCOUNT_KEY_B64
+            and GDRIVE_OAUTH_CREDENTIALS_B64
             and CUSTOMER_ID
         ):
             try:
                 upload_sched = GDriveUploadScheduler(
                     folder_id=GDRIVE_FOLDER_ID,
-                    service_account_key_b64=GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+                    oauth_credentials_b64=GDRIVE_OAUTH_CREDENTIALS_B64,
                     customer_id=CUSTOMER_ID,
                     interval_minutes=int(getattr(config, "gdrive_upload_interval_minutes", 60)),
                     max_retry=int(getattr(config, "upload_max_retry", 5)),
@@ -415,7 +415,7 @@ def main() -> int:
         REMOTE_CONTROL_ENABLED
         and _HAS_REMOTE_CONTROL
         and GDRIVE_FOLDER_ID
-        and GDRIVE_SERVICE_ACCOUNT_KEY_B64
+        and GDRIVE_OAUTH_CREDENTIALS_B64
         and CUSTOMER_ID
     ):
         try:
@@ -439,7 +439,7 @@ def main() -> int:
 
             remote_control_sched = RemoteControlScheduler(
                 folder_id=GDRIVE_FOLDER_ID,
-                service_account_key_b64=GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+                oauth_credentials_b64=GDRIVE_OAUTH_CREDENTIALS_B64,
                 customer_id=CUSTOMER_ID,
                 poll_interval_minutes=int(getattr(config, "remote_control_poll_interval_minutes", 5)),
                 force_upload_callback=_force_upload_cb,

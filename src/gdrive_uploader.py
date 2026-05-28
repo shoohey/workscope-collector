@@ -2,13 +2,23 @@
 
 設計方針 (lite 版固有):
 - v1.1-lite 顧客は OCR/マスキング/スクショ生成を行わず、JSONL イベントだけを
-  そのまま顧客フォルダ (Google Drive 共有ドライブ配下) へ gzip 圧縮して直送する。
+  そのまま顧客フォルダ (Google Drive 配下) へ gzip 圧縮して直送する。
 - マスキング前提が「無い」運用なので、uploader.py の PII 再スキャン
   (scan_pending_for_leakage) は実施しない。代わりにアップロード先を
-  共有ドライブ内の顧客フォルダに厳密に隔離することで漏洩経路を断つ。
+  事前認証ユーザーのマイドライブ内の顧客フォルダに厳密に隔離する。
 - 1日1ファイル方式: 未送信 jsonl が複数日ぶんあっても、まとめて1つの zip に
   せず、1ファイル単位で /<customer_id>/<YYYY-MM-DD>/events_<HHMMSS>.jsonl.gz
   にアップロードする (差分再送・部分復旧をシンプルに保つため)。
+
+認証方式 (OAuth Refresh Token 方式 — v1.1-lite で SA から変更):
+- サービスアカウント (SA) ではなく、OAuth User Account の Refresh Token を
+  ビルド時に EXE に埋め込む。
+- 理由: SA はマイドライブに quota が無く書き込めない。共有ドライブが必須だが
+  Workspace 契約 (Business Standard 以上) が必要。個人 Gmail (Google One)
+  では共有ドライブ作成不可。
+- 対策: 髙石さん (pondering1083@gmail.com) のマイドライブ (5TB 空き) を
+  使い、事前に OAuth で発行した Refresh Token を埋め込む。
+- 将来: Workspace 契約後は共有ドライブ + SA 方式へ移行予定。
 
 uploader.py との関係:
 - 既存 UploadScheduler と同じインターフェース (start / stop / trigger_now /
@@ -42,13 +52,13 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from google.oauth2 import service_account  # type: ignore
+    from google.oauth2.credentials import Credentials  # type: ignore
     from googleapiclient.discovery import build  # type: ignore
     from googleapiclient.http import MediaIoBaseUpload  # type: ignore
     from googleapiclient.errors import HttpError  # type: ignore
     _HAS_GDRIVE = True
 except ImportError:  # pragma: no cover - 開発環境で google ライブラリ未導入の場合
-    service_account = None  # type: ignore
+    Credentials = None  # type: ignore
     build = None  # type: ignore
     MediaIoBaseUpload = None  # type: ignore
     HttpError = Exception  # type: ignore
@@ -68,10 +78,15 @@ logger = logging.getLogger(__name__)
 
 
 # Drive API: drive.file スコープのみ要求 (このアプリが作成したファイルにのみアクセス可能)。
-# 顧客フォルダ全体を漁る必要はないため、最小権限で運用する。
+# OAuth ユーザー全体の Drive を漁る必要はないため、最小権限で運用する。
+# Google が drive (full) スコープを restricted scope にしてブロックしているため
+# drive.file が事実上の唯一の選択肢でもある。
 _GDRIVE_SCOPES: tuple[str, ...] = (
     "https://www.googleapis.com/auth/drive.file",
 )
+
+# OAuth Refresh Token を access token に交換するエンドポイント (Google 固定値)
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 # Drive 上での folder MIME type
 _FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -82,42 +97,68 @@ _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
 # ---- 認証 ----------------------------------------------------------------
 
-def _decode_sa_key(b64_key: str) -> Optional[dict]:
-    """base64 エンコードされたサービスアカウント JSON をデコード.
+def _decode_oauth_credentials(b64_creds: str) -> Optional[dict]:
+    """base64 エンコードされた OAuth 資格情報 JSON をデコード.
 
-    不正な base64 / JSON の場合は None を返し、上位でエラーログを出す。
+    期待する JSON 形式::
+
+        {
+            "refresh_token": "1//0abc...",
+            "client_id": "xxx.apps.googleusercontent.com",
+            "client_secret": "GOCSPX-..."
+        }
+
+    不正な base64 / JSON / 必須キー欠落の場合は None を返し、上位でエラーログを出す。
     """
-    if not b64_key:
+    if not b64_creds:
         return None
     try:
-        raw = base64.b64decode(b64_key, validate=True)
+        raw = base64.b64decode(b64_creds, validate=True)
     except (binascii.Error, ValueError) as e:
-        logger.error("gdrive: invalid base64 service account key: %s", e)
+        logger.error("gdrive: invalid base64 oauth credentials: %s", e)
         return None
     try:
         info = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
-        logger.error("gdrive: service account key is not valid JSON: %s", e)
+        logger.error("gdrive: oauth credentials is not valid JSON: %s", e)
         return None
     if not isinstance(info, dict):
-        logger.error("gdrive: service account key must be a JSON object")
+        logger.error("gdrive: oauth credentials must be a JSON object")
         return None
+    # 必須キーチェック
+    for required_key in ("refresh_token", "client_id", "client_secret"):
+        if not info.get(required_key):
+            logger.error(
+                "gdrive: oauth credentials missing required key: %s",
+                required_key,
+            )
+            return None
     return info
 
 
-def _build_drive_service(b64_key: str):
-    """Drive API クライアントを構築. 失敗時は None."""
+def _build_drive_service(b64_creds: str):
+    """Drive API クライアントを構築. 失敗時は None.
+
+    OAuth Refresh Token から google.oauth2.credentials.Credentials を組み立て、
+    Google Drive v3 サービスクライアントを返す。Access Token は Credentials が
+    自動的にリフレッシュする (リクエスト時に lazy refresh)。
+    """
     if not _HAS_GDRIVE:
         logger.warning("gdrive: google-api-python-client not installed; skipping")
         return None
-    info = _decode_sa_key(b64_key)
+    info = _decode_oauth_credentials(b64_creds)
     if info is None:
         return None
     try:
-        creds = service_account.Credentials.from_service_account_info(
-            info, scopes=list(_GDRIVE_SCOPES),
+        creds = Credentials(
+            token=None,
+            refresh_token=info["refresh_token"],
+            client_id=info["client_id"],
+            client_secret=info["client_secret"],
+            token_uri=_GOOGLE_TOKEN_URI,
+            scopes=list(_GDRIVE_SCOPES),
         )
-        # cache_discovery=False: gdrive 用 oauth2client cache 警告を抑制
+        # cache_discovery=False: oauth2client cache 警告を抑制
         service = build("drive", "v3", credentials=creds, cache_discovery=False)
         return service
     except Exception:
@@ -131,7 +172,7 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> Optional[str]:
     """parent_id 配下に name フォルダがあれば ID を返す、無ければ作って ID を返す.
 
     Drive API の探索は eq クエリで行い、ヒットがあれば最初の1件を採用する。
-    共有ドライブ (supportsAllDrives=True) にも対応。
+    マイドライブ運用なので supportsAllDrives は付けない (付けても無害)。
     """
     if service is None:
         return None
@@ -147,9 +188,6 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> Optional[str]:
             q=query,
             fields="files(id, name)",
             pageSize=10,
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True,
-            corpora="allDrives",
         ).execute()
         files = resp.get("files", []) or []
         if files:
@@ -163,7 +201,6 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> Optional[str]:
         created = service.files().create(
             body=meta,
             fields="id",
-            supportsAllDrives=True,
         ).execute()
         return created.get("id")
     except HttpError:
@@ -243,7 +280,6 @@ def _upload_one(
                 body=meta,
                 media_body=media,
                 fields="id, name",
-                supportsAllDrives=True,
             ).execute()
             logger.info(
                 "gdrive: uploaded %s → /%s/%s/%s",
@@ -270,7 +306,7 @@ def _upload_one(
 
 def upload_once_gdrive(
     folder_id: str,
-    sa_key_b64: str,
+    oauth_credentials_b64: str,
     customer_id: str,
     max_retry: int = 5,
 ) -> bool:
@@ -279,10 +315,10 @@ def upload_once_gdrive(
     lite 版仕様:
       - 未送信 jsonl を 1日1ファイル単位で個別アップロード
       - PII 再スキャンは行わない (lite はマスキング前提が無い)
-      - 共有ドライブ上の顧客フォルダ配下に隔離されているため
-        外部漏洩経路は API キー漏洩のみ → SA キーは build 時埋め込み
+      - 事前認証ユーザーのマイドライブ配下に隔離されているため
+        外部漏洩経路は Refresh Token 漏洩のみ → 資格情報は build 時埋め込み
     """
-    if not (folder_id and sa_key_b64 and customer_id):
+    if not (folder_id and oauth_credentials_b64 and customer_id):
         logger.info("gdrive: not configured; skipping")
         return False
     if not _HAS_GDRIVE:
@@ -294,7 +330,7 @@ def upload_once_gdrive(
         logger.info("gdrive: no pending events")
         return True
 
-    service = _build_drive_service(sa_key_b64)
+    service = _build_drive_service(oauth_credentials_b64)
     if service is None:
         return False
 
@@ -323,13 +359,13 @@ class GDriveUploadScheduler:
     def __init__(
         self,
         folder_id: str,
-        service_account_key_b64: str,
+        oauth_credentials_b64: str,
         customer_id: str,
         interval_minutes: int = 60,
         max_retry: int = 5,
     ) -> None:
         self._folder_id = folder_id or ""
-        self._sa_key = service_account_key_b64 or ""
+        self._oauth_creds = oauth_credentials_b64 or ""
         self._customer_id = customer_id or ""
         # interval は秒に変換。1分未満は不適切なので 60s に底上げ
         self._interval = max(60, int(interval_minutes) * 60)
@@ -339,14 +375,14 @@ class GDriveUploadScheduler:
 
     @property
     def configured(self) -> bool:
-        """folder_id / SA キー / customer_id が全て揃い、google ライブラリが入っているか.
+        """folder_id / OAuth資格情報 / customer_id が全て揃い、google ライブラリが入っているか.
 
         _HAS_GDRIVE=False の場合は configured も False を返し、上位は no-op 扱いにする。
         """
         return bool(
             _HAS_GDRIVE
             and self._folder_id
-            and self._sa_key
+            and self._oauth_creds
             and self._customer_id
         )
 
@@ -377,7 +413,7 @@ class GDriveUploadScheduler:
         try:
             return upload_once_gdrive(
                 self._folder_id,
-                self._sa_key,
+                self._oauth_creds,
                 self._customer_id,
                 max_retry=self._max_retry,
             )
@@ -393,7 +429,7 @@ class GDriveUploadScheduler:
             try:
                 upload_once_gdrive(
                     self._folder_id,
-                    self._sa_key,
+                    self._oauth_creds,
                     self._customer_id,
                     max_retry=self._max_retry,
                 )

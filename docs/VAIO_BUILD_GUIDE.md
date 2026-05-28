@@ -5,8 +5,11 @@
 - 想定所要時間: 初回60分／2社目以降30〜40分
 - 関連: `docs/SPEC_v1.1-lite.md`、`docs/GDRIVE_SETUP.md`
 
-> Google Workspace 側の準備（共有ドライブ作成・サービスアカウント発行・control.json 配置）は本ドキュメントでは扱わない。
-> 先に `docs/GDRIVE_SETUP.md` を完走して **GDRIVE_FOLDER_ID / SA キー JSON / CUSTOMER_ID** の3点を揃えてから本手順に入ること。
+> Google Drive 側の準備（マイドライブにフォルダ作成・OAuth Refresh Token 発行・control.json 配置）は本ドキュメントでは扱わない。
+> 先に `docs/GDRIVE_SETUP.md` を完走して **GDRIVE_FOLDER_ID / OAuth 資格情報 JSON / CUSTOMER_ID** の3点を揃えてから本手順に入ること。
+>
+> **【重要】2026-05-28 認証方式変更**: SA (サービスアカウント) → OAuth Refresh Token に変更。
+> ビルドコマンドの引数も `--service-account-key` → `--oauth-credentials` に変更。詳細は §6 を参照。
 
 ---
 
@@ -76,8 +79,8 @@ python -m venv .venv
 pip install -r requirements-lite.txt
 ```
 
-> `requirements-lite.txt` は v1.1-lite 専用の依存定義（OCR / PaddleOCR を除外し、`google-api-python-client` / `google-auth` / `cryptography` を追加）。別タスクで作成予定。
-> 未作成の場合は暫定で `requirements.txt` を使い、`pip install google-api-python-client google-auth cryptography` を追加実行する。
+> `requirements-lite.txt` は v1.1-lite 専用の依存定義（OCR / PaddleOCR を除外し、`google-api-python-client` / `google-auth` / `google-auth-oauthlib` を追加）。
+> `google-auth-oauthlib` は OAuth Refresh Token 取得スクリプト (`scripts/issue_refresh_token.py`) で使用。
 
 期待する状態:
 - プロンプトの先頭に `(.venv)` が付く
@@ -118,16 +121,25 @@ pytest tests/
 | 項目 | 例 | 取得元 |
 |---|---|---|
 | `GDRIVE_FOLDER_ID` | `1AbCdEfGhIjKlMnOpQrStUvWxYz12345` | GDRIVE_SETUP.md §7.2 |
-| サービスアカウントキー JSON のパス | `C:\keys\workscope-tribe-001.json` | GDRIVE_SETUP.md §5.3 |
+| OAuth 資格情報 JSON のパス | `C:\keys\oauth-tribe-001.json` | GDRIVE_SETUP.md §5.2 |
 | `CUSTOMER_ID` | `tribe-001` | GDRIVE_SETUP.md §7.1 |
 
-### 5.1 SA キーの配置
+### 5.1 OAuth 資格情報の配置
 
-VAIO 上に `C:\keys\` フォルダを作成し、ダウンロード済の SA キー JSON を配置する。
+VAIO 上に `C:\keys\` フォルダを作成し、`scripts/issue_refresh_token.py` で生成した OAuth 資格情報 JSON を配置する。
 
 ```cmd
 mkdir C:\keys
-copy "ダウンロードフォルダ\workscope-tribe-001.json" C:\keys\
+copy "Macから持ち込み\oauth-tribe-001.json" C:\keys\
+```
+
+JSON の中身（参考）:
+```json
+{
+  "refresh_token": "1//0abc...",
+  "client_id": "xxx.apps.googleusercontent.com",
+  "client_secret": "GOCSPX-..."
+}
 ```
 
 > `C:\keys\` フォルダは **エクスプローラのアクセス権を自分のみに制限** すること（プロパティ → セキュリティタブ → 編集）。
@@ -143,10 +155,12 @@ bash scripts\build_for_customer.sh ^
   --customer-id "tribe-001" ^
   --mode lite ^
   --gdrive-folder-id "1AbCdEfGhIjKlMnOpQrStUvWxYz12345" ^
-  --service-account-key "C:\keys\workscope-tribe-001.json"
+  --oauth-credentials "C:\keys\oauth-tribe-001.json"
 ```
 
 > `--mode lite` は v1.1-lite ビルド用フラグ。OCR / マスカー / Supabase アップローダを除外し、Google Drive 直送モジュールを組み込む。
+> `--oauth-credentials` は OAuth Refresh Token 方式の資格情報 JSON のパス。
+> （旧 `--service-account-key` から名称変更。旧オプションは互換のために残してあるが警告メッセージが出る）
 > `^` は Windows cmd の行継続記号（PowerShell の場合はバッククォート `` ` `` に置き換え）。
 > 引数に半角スペースを含む値（顧客名やパス）は必ずダブルクォートで囲むこと。
 
@@ -155,7 +169,7 @@ bash scripts\build_for_customer.sh ^
 `[1/5]` 〜 `[5/5]` のログが出る:
 - `[1/5] copy repo → /tmp/workscope_build_XXXXXX`
 - `[2/5] reduce profiles to {base, generic}`（lite モードは generic プロファイル固定）
-- `[3/5] generate src/_build_constants.py`（SA キーを暗号化して埋め込み）
+- `[3/5] generate src/_build_constants.py`（OAuth 資格情報を base64 埋め込み）
 - `[4/5] render consent_form_lite.html with customer name`
 - `[5/5] PyInstaller build (this takes a few minutes)...`
 
@@ -297,7 +311,7 @@ VAIO 自身を「顧客 PC のスタンドイン」として、生成 EXE を流
 | 顧客名 / customer_id（tribe-001）|
 | ビルド日 |
 | EXE ハッシュ（`certutil -hashfile dist\WorkScope_*.exe SHA256`）|
-| SA キーの保管場所 |
+| OAuth 資格情報 JSON の保管場所 |
 | GDRIVE_FOLDER_ID |
 | 配布日時・配布先メールアドレス |
 
@@ -355,13 +369,14 @@ python .venv\Scripts\pywin32_postinstall.py -install
 ### 9.4 「Google Drive へのアップロードが失敗する」
 
 確認順序:
-1. **SA キーの読み込み確認**
-   - EXE 起動時のログに `Failed to load service account key` が出ていないか
-   - JSON が破損している場合は GDRIVE_SETUP.md §5.2 から再発行
+1. **OAuth 資格情報の読み込み確認**
+   - EXE 起動時のログに `failed to decode oauth credentials` / `oauth credentials missing key` が出ていないか
+   - JSON が破損している場合は GDRIVE_SETUP.md §5 から再発行
 2. **GDRIVE_FOLDER_ID の typo**
    - 25〜33文字の英数字。スペースや改行が混ざっていないか
-3. **共有ドライブ側の権限**
-   - GDRIVE_SETUP.md §6 を再確認
+3. **Refresh Token の有効性**
+   - ログに `invalid_grant` / `Token has been expired or revoked` が出ていないか
+   - 出ていれば GDRIVE_SETUP.md §5 を再実行 → 新 Refresh Token で再ビルド → 顧客に再配布
 4. **API 制限**
    - 1日 1,000,000,000 リクエストが上限。通常は超えない
    - 短時間に大量アップロードしている場合は `upload_interval_minutes` を伸ばす
@@ -389,17 +404,17 @@ python .venv\Scripts\pywin32_postinstall.py -install
 | `CUSTOMER_ID` | `tribe-001` | `tribe-002` | `tribe-003` |
 | `--customer` | `"テスト顧客"` | `"〇〇株式会社"` | `"△△商事"` |
 | `GDRIVE_FOLDER_ID` | `1AbCd...` | （GDRIVE_SETUP.md §7.2 で取得した新フォルダ ID） | 同左 |
-| SA キー JSON | `C:\keys\workscope-tribe-001.json` | `C:\keys\workscope-tribe-002.json` | `C:\keys\workscope-tribe-003.json` |
+| OAuth 資格情報 JSON | `C:\keys\oauth-tribe-001.json` | `C:\keys\oauth-tribe-002.json` | `C:\keys\oauth-tribe-003.json` |
 
 ### 10.1 注意点
 
-- **SA キーは顧客ごとに必ず新規発行**（前回のものは流用しない）
+- **OAuth Refresh Token は顧客ごとに必ず新規発行**（前回のものは流用しない）
   - 漏洩時の被害を顧客単位に局所化するため
   - GDRIVE_SETUP.md §5 を毎回実行
 - **顧客フォルダも顧客ごとに新規作成**
   - 同じフォルダに複数顧客のデータを混ぜない
-- **GDrive 共有ドライブ・Cloud プロジェクト・配布用フォルダは全社共通で使い回し**
-  - 毎回作る必要はない
+- **OAuth Client (client_secret.json)・Cloud プロジェクト・配布用フォルダは全社共通で使い回し**
+  - 毎回作る必要はない（OAuth Client は §4 で1回だけ作成）
 
 ---
 

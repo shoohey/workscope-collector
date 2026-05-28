@@ -35,13 +35,15 @@ RAW_CAPTURE="false"
 # v1.1-lite: 新規オプション
 MODE="full"                   # "full" (v1.0 薬局向け) | "lite" (v1.1 汎用)
 CUSTOMER_ID=""                # "tribe-001" 等
-GDRIVE_FOLDER_ID=""           # 共有ドライブ内顧客フォルダのID
-SERVICE_ACCOUNT_KEY=""        # SAキーJSONファイルパス
+GDRIVE_FOLDER_ID=""           # マイドライブ/共有ドライブ内 顧客フォルダのID
+OAUTH_CREDENTIALS=""          # OAuth資格情報JSONファイルパス
+                              # (scripts/issue_refresh_token.py で生成)
+                              # 形式: {"refresh_token": "...", "client_id": "...", "client_secret": "..."}
 
 usage() {
     cat <<EOF
 Usage: $0 --customer NAME --industry INDUSTRY [--endpoint URL] [--api-key KEY] [--output PATH] [--raw-capture]
-       $0 --mode lite --customer NAME --customer-id ID --gdrive-folder-id ID --service-account-key PATH [--output PATH]
+       $0 --mode lite --customer NAME --customer-id ID --gdrive-folder-id ID --oauth-credentials PATH [--output PATH]
 
 Common options:
   --customer NAME            顧客名 (例: "村上薬局" / "テスト顧客")
@@ -57,16 +59,20 @@ Full mode options (v1.0 薬局向け: スクショ+OCR+マスキング+Supabase)
 Lite mode options (v1.1 汎用: JSONLのみ+Google Drive直送+リモート制御):
   --mode lite                Lite版（汎用、医療系以外向け）でビルド
   --customer-id ID           顧客ID（例: tribe-001）。control.json/GDriveパス分離に使用
-  --gdrive-folder-id ID      Google共有ドライブ内の顧客フォルダID（URLの /folders/{ID}）
-  --service-account-key PATH サービスアカウントJSONキーのファイルパス（base64で焼き付け）
+  --gdrive-folder-id ID      Google Drive内の顧客フォルダID（URLの /folders/{ID}）
+                             (v1.1-lite 当面はマイドライブ配下、Workspace後は共有ドライブ)
+  --oauth-credentials PATH   OAuth資格情報JSONファイルのパス。
+                             scripts/issue_refresh_token.py で生成。
+                             形式: {"refresh_token": "...", "client_id": "...", "client_secret": "..."}
+                             (旧 --service-account-key の置換: SA→OAuth Refresh Token方式変更)
 
 Examples:
   # Full（薬局向け既存）
   $0 --customer "村上薬局" --industry pharmacy --endpoint https://upload.tribe-saas.com/...
 
-  # Lite（一般企業向け新規）
+  # Lite（一般企業向け新規, OAuth Refresh Token方式）
   $0 --mode lite --customer "テスト顧客" --customer-id tribe-001 \\
-     --gdrive-folder-id 1AbCdEfGhIjKlMnOp --service-account-key ./sa-tribe-001.json
+     --gdrive-folder-id 1AbCdEfGhIjKlMnOp --oauth-credentials ./oauth-tribe-001.json
 EOF
     exit 0
 }
@@ -96,7 +102,13 @@ while [[ $# -gt 0 ]]; do
         --mode)                  MODE="$2"; shift 2;;
         --customer-id)           CUSTOMER_ID="$2"; shift 2;;
         --gdrive-folder-id)      GDRIVE_FOLDER_ID="$2"; shift 2;;
-        --service-account-key)   SERVICE_ACCOUNT_KEY="$2"; shift 2;;
+        --oauth-credentials)     OAUTH_CREDENTIALS="$2"; shift 2;;
+        # 後方互換: 旧 --service-account-key は --oauth-credentials のエイリアスとして
+        # 受け付ける (中身は OAuth 資格情報 JSON である必要がある)
+        --service-account-key)
+            echo "WARN: --service-account-key is deprecated; treating value as --oauth-credentials" >&2
+            echo "      OAuth 資格情報 JSON (refresh_token/client_id/client_secret) を渡してください" >&2
+            OAUTH_CREDENTIALS="$2"; shift 2;;
         -h|--help)               usage;;
         *) echo "Unknown option: $1" >&2; usage;;
     esac
@@ -138,12 +150,13 @@ else
         echo "ERROR: --gdrive-folder-id is required in lite mode" >&2
         usage
     fi
-    if [[ -z "$SERVICE_ACCOUNT_KEY" ]]; then
-        echo "ERROR: --service-account-key is required in lite mode" >&2
+    if [[ -z "$OAUTH_CREDENTIALS" ]]; then
+        echo "ERROR: --oauth-credentials is required in lite mode" >&2
+        echo "  scripts/issue_refresh_token.py で生成した OAuth 資格情報 JSON を渡してください" >&2
         usage
     fi
-    if [[ ! -f "$SERVICE_ACCOUNT_KEY" ]]; then
-        echo "ERROR: service account key file not found: $SERVICE_ACCOUNT_KEY" >&2
+    if [[ ! -f "$OAUTH_CREDENTIALS" ]]; then
+        echo "ERROR: oauth credentials file not found: $OAUTH_CREDENTIALS" >&2
         exit 1
     fi
     # Lite モードは業界マスキング不要なので generic 固定
@@ -177,7 +190,7 @@ echo "  Customer:     $CUSTOMER"
 if [[ "$MODE" == "lite" ]]; then
     echo "  CustomerID:   $CUSTOMER_ID"
     echo "  GDrive folder:$GDRIVE_FOLDER_ID"
-    echo "  SA key:       ***embedded (base64) from $(basename "$SERVICE_ACCOUNT_KEY")***"
+    echo "  OAuth creds:  ***embedded (base64) from $(basename "$OAUTH_CREDENTIALS")***"
 else
     echo "  Industry:     $INDUSTRY"
     echo "  Endpoint:     ${ENDPOINT:-<none, USB only>}"
@@ -223,27 +236,51 @@ fi
 COLLECTION_MODE_PY="full"
 UPLOAD_BACKEND_PY="supabase"
 REMOTE_CONTROL_ENABLED_PY="False"
-SA_KEY_B64=""
+OAUTH_CREDS_B64=""
 
 if [[ "$MODE" == "lite" ]]; then
     COLLECTION_MODE_PY="lite"
     UPLOAD_BACKEND_PY="gdrive"
     REMOTE_CONTROL_ENABLED_PY="True"
-    # SAキーJSONを base64 エンコード
+    # OAuth 資格情報 JSON の中身を簡易検証 (refresh_token / client_id / client_secret 必須)
+    # JSON パースは python に任せる (jq 依存を増やさない)
+    if ! python3 - "$OAUTH_CREDENTIALS" <<'PYEOF'
+import json
+import sys
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except (OSError, ValueError) as e:
+    print(f"ERROR: failed to read oauth credentials JSON: {e}", file=sys.stderr)
+    sys.exit(2)
+if not isinstance(data, dict):
+    print("ERROR: oauth credentials must be a JSON object", file=sys.stderr)
+    sys.exit(2)
+missing = [k for k in ("refresh_token", "client_id", "client_secret") if not data.get(k)]
+if missing:
+    print(f"ERROR: oauth credentials missing keys: {missing}", file=sys.stderr)
+    sys.exit(2)
+PYEOF
+    then
+        echo "ERROR: oauth credentials validation failed" >&2
+        exit 1
+    fi
+    # OAuth 資格情報 JSON を base64 エンコード
     if command -v base64 >/dev/null 2>&1; then
         # macOS / BSD: -i ファイル
         # GNU coreutils: -w 0 で改行抑制
         if base64 --help 2>&1 | grep -q "GNU coreutils"; then
-            SA_KEY_B64="$(base64 -w 0 < "$SERVICE_ACCOUNT_KEY")"
+            OAUTH_CREDS_B64="$(base64 -w 0 < "$OAUTH_CREDENTIALS")"
         else
-            SA_KEY_B64="$(base64 < "$SERVICE_ACCOUNT_KEY" | tr -d '\n')"
+            OAUTH_CREDS_B64="$(base64 < "$OAUTH_CREDENTIALS" | tr -d '\n')"
         fi
     else
         echo "ERROR: base64 command not found" >&2
         exit 1
     fi
-    if [[ -z "$SA_KEY_B64" ]]; then
-        echo "ERROR: failed to encode service account key" >&2
+    if [[ -z "$OAUTH_CREDS_B64" ]]; then
+        echo "ERROR: failed to encode oauth credentials" >&2
         exit 1
     fi
 fi
@@ -260,12 +297,15 @@ BUILD_DATE = "$DATE_STR"
 RAW_CAPTURE_MODE_DEFAULT = $RAW_CAPTURE_PY
 
 # v1.1-lite: 収集モード / アップロードバックエンド / リモート制御
+# GDRIVE_OAUTH_CREDENTIALS_B64 は OAuth Refresh Token 方式の資格情報 JSON
+# (refresh_token / client_id / client_secret) を base64 エンコードしたもの。
+# scripts/issue_refresh_token.py で生成 → --oauth-credentials で渡す。
 COLLECTION_MODE = "$COLLECTION_MODE_PY"
 UPLOAD_BACKEND = "$UPLOAD_BACKEND_PY"
 REMOTE_CONTROL_ENABLED = $REMOTE_CONTROL_ENABLED_PY
 CUSTOMER_ID = "$CUSTOMER_ID"
 GDRIVE_FOLDER_ID = "$GDRIVE_FOLDER_ID"
-GDRIVE_SERVICE_ACCOUNT_KEY_B64 = "$SA_KEY_B64"
+GDRIVE_OAUTH_CREDENTIALS_B64 = "$OAUTH_CREDS_B64"
 PYEOF
 
 # 既存 config.py に「ビルド時定数があれば優先する」追記
@@ -297,6 +337,7 @@ try:
     except ImportError:
         pass
     # v1.1-lite: 収集モード/GDrive直送/リモート制御の定数も焼き付ける
+    # OAuth Refresh Token 方式 (SA から変更) の資格情報を埋め込む
     try:
         from _build_constants import (  # type: ignore[import-not-found]
             COLLECTION_MODE as _BUILD_COLLECTION_MODE,
@@ -304,7 +345,7 @@ try:
             REMOTE_CONTROL_ENABLED as _BUILD_REMOTE_CONTROL_ENABLED,
             CUSTOMER_ID as _BUILD_CUSTOMER_ID,
             GDRIVE_FOLDER_ID as _BUILD_GDRIVE_FOLDER_ID,
-            GDRIVE_SERVICE_ACCOUNT_KEY_B64 as _BUILD_GDRIVE_SA_KEY_B64,
+            GDRIVE_OAUTH_CREDENTIALS_B64 as _BUILD_GDRIVE_OAUTH_CREDS_B64,
         )
         if _BUILD_COLLECTION_MODE:
             COLLECTION_MODE = _BUILD_COLLECTION_MODE
@@ -315,8 +356,8 @@ try:
             CUSTOMER_ID = _BUILD_CUSTOMER_ID
         if _BUILD_GDRIVE_FOLDER_ID:
             GDRIVE_FOLDER_ID = _BUILD_GDRIVE_FOLDER_ID
-        if _BUILD_GDRIVE_SA_KEY_B64:
-            GDRIVE_SERVICE_ACCOUNT_KEY_B64 = _BUILD_GDRIVE_SA_KEY_B64
+        if _BUILD_GDRIVE_OAUTH_CREDS_B64:
+            GDRIVE_OAUTH_CREDENTIALS_B64 = _BUILD_GDRIVE_OAUTH_CREDS_B64
     except ImportError:
         pass
 except ImportError:

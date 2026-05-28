@@ -1,13 +1,18 @@
-"""remote_control のテスト.
+"""remote_control のテスト (OAuth Refresh Token 方式).
 
 - google API 依存は import 自体は OK (環境依存)。
   Drive アクセス系メソッドは fetch_now/apply_control 経由でモックする。
 - pause_flag_file() は APPDATA を tmp_path に差し替えることで隔離する
   (test_uploader.py と同じパターン)。
+
+v1.1-lite 変更: SA から OAuth Refresh Token 方式に変更したため、
+コンストラクタ引数が service_account_key_b64 → oauth_credentials_b64 に
+変わっている。
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
@@ -43,10 +48,24 @@ def _now_iso(offset_seconds: int = 0) -> str:
     return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _valid_oauth_creds_b64() -> str:
+    """テスト用のダミー OAuth 資格情報 (base64).
+
+    v1.1-lite で SA から OAuth Refresh Token 方式に変更したため、
+    refresh_token / client_id / client_secret の3点セットを base64 で渡す。
+    """
+    payload = {
+        "refresh_token": "1//0FAKE_REFRESH_TOKEN_FOR_TEST",
+        "client_id": "fake-client-id.apps.googleusercontent.com",
+        "client_secret": "GOCSPX-FAKE_CLIENT_SECRET",
+    }
+    return base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+
+
 def _make_scheduler(
     *,
     folder_id: str = "folder-id",
-    key_b64: str = "key-b64",
+    creds_b64: str | None = None,
     customer_id: str = "tribe-001",
     poll_interval_minutes: int = 5,
     force_upload_callback=None,
@@ -54,9 +73,11 @@ def _make_scheduler(
     grace_period_minutes: int = 10,
 ):
     from remote_control import RemoteControlScheduler  # type: ignore
+    if creds_b64 is None:
+        creds_b64 = _valid_oauth_creds_b64()
     return RemoteControlScheduler(
         folder_id=folder_id,
-        service_account_key_b64=key_b64,
+        oauth_credentials_b64=creds_b64,
         customer_id=customer_id,
         poll_interval_minutes=poll_interval_minutes,
         force_upload_callback=force_upload_callback,
@@ -74,8 +95,8 @@ def test_configured_false_when_folder_id_missing(isolated):
     assert sched.configured is False
 
 
-def test_configured_false_when_key_missing(isolated):
-    sched = _make_scheduler(key_b64="")
+def test_configured_false_when_creds_missing(isolated):
+    sched = _make_scheduler(creds_b64="")
     assert sched.configured is False
 
 
@@ -512,6 +533,74 @@ def test_force_upload_while_paused(isolated):
     sched.apply_control(control)
     assert pause_flag_file().exists()
     callback.assert_called_once_with()
+
+
+# ============================================================================
+# OAuth 資格情報の追加検証テスト (v1.1-lite で SA → OAuth 移行に伴う追加)
+# ============================================================================
+
+def test_oauth_credentials_missing_required_keys_rejected(isolated, monkeypatch):
+    """refresh_token / client_id / client_secret のいずれかが欠落していたら
+    _get_service() が None を返し、fetch_now が None を返すこと."""
+    import remote_control  # type: ignore
+
+    # _HAS_GDRIVE を True にして configured が True になるようにする
+    monkeypatch.setattr(remote_control, "_HAS_GDRIVE", True)
+
+    # refresh_token なしの不正な OAuth JSON
+    incomplete = {
+        "client_id": "x.apps.googleusercontent.com",
+        "client_secret": "GOCSPX-x",
+    }
+    bad_b64 = base64.b64encode(
+        json.dumps(incomplete).encode("utf-8")
+    ).decode("ascii")
+
+    sched = _make_scheduler(creds_b64=bad_b64)
+    # configured は True (空文字列ではないので)
+    assert sched.configured is True
+    # ただし fetch_now は内部で _get_service が None を返すので None
+    assert sched.fetch_now() is None
+
+
+def test_oauth_credentials_passed_to_credentials_class(isolated, monkeypatch):
+    """_get_service が google.oauth2.credentials.Credentials を
+    正しい引数で呼び出すこと."""
+    import remote_control  # type: ignore
+
+    # Credentials / build をモック
+    fake_creds_instance = MagicMock(name="creds_instance")
+    fake_credentials_class = MagicMock(return_value=fake_creds_instance)
+    fake_service = MagicMock(name="drive_service")
+    fake_build = MagicMock(return_value=fake_service)
+
+    monkeypatch.setattr(remote_control, "_HAS_GDRIVE", True)
+    monkeypatch.setattr(remote_control, "Credentials", fake_credentials_class)
+    monkeypatch.setattr(remote_control, "build", fake_build)
+
+    sched = _make_scheduler()
+    # _get_service を直接呼ぶ
+    svc = sched._get_service()
+    assert svc is fake_service
+
+    # Credentials が正しい引数で呼ばれたこと
+    fake_credentials_class.assert_called_once()
+    _args, kwargs = fake_credentials_class.call_args
+    assert kwargs.get("token") is None
+    assert kwargs.get("refresh_token") == "1//0FAKE_REFRESH_TOKEN_FOR_TEST"
+    assert kwargs.get("client_id") == "fake-client-id.apps.googleusercontent.com"
+    assert kwargs.get("client_secret") == "GOCSPX-FAKE_CLIENT_SECRET"
+    assert "oauth2.googleapis.com/token" in kwargs.get("token_uri", "")
+    scopes = kwargs.get("scopes")
+    assert scopes is not None
+    assert "https://www.googleapis.com/auth/drive.file" in scopes
+
+    # build が drive v3 で呼ばれたこと
+    fake_build.assert_called_once()
+    bargs, bkwargs = fake_build.call_args
+    assert bargs[0] == "drive"
+    assert bargs[1] == "v3"
+    assert bkwargs.get("credentials") is fake_creds_instance
 
 
 if __name__ == "__main__":

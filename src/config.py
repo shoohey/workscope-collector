@@ -36,11 +36,21 @@ COLLECTION_MODE: str = "full"  # "full" | "lite"
 # COLLECTION_MODE="lite" の顧客は "gdrive" を選ぶ想定。
 UPLOAD_BACKEND: str = "supabase"  # "supabase" | "gdrive"
 
-# Google Drive 共有ドライブ内の顧客フォルダID（drive.files.list/createで使用）
+# Google Drive 内の顧客フォルダID（drive.files.list/createで使用）
+# v1.1-lite 当面は事前認証ユーザーのマイドライブ配下の顧客フォルダID。
+# Workspace 契約後は共有ドライブ内の顧客フォルダIDへ移行予定。
 GDRIVE_FOLDER_ID: str = ""
 
-# サービスアカウントJSONキー（base64エンコード文字列、ビルド時埋め込み）
-GDRIVE_SERVICE_ACCOUNT_KEY_B64: str = ""
+# OAuth 資格情報（base64エンコード文字列、ビルド時埋め込み）。
+# v1.1-lite で SA から OAuth Refresh Token 方式に変更した。
+# 期待する中身（base64 デコード後の JSON）::
+#   {
+#     "refresh_token": "1//0abc...",
+#     "client_id": "xxx.apps.googleusercontent.com",
+#     "client_secret": "GOCSPX-..."
+#   }
+# 取得手順は scripts/issue_refresh_token.py 参照。
+GDRIVE_OAUTH_CREDENTIALS_B64: str = ""
 
 # 顧客ID（control.json/customer別フォルダで使用、tribe-001 等）
 CUSTOMER_ID: str = ""

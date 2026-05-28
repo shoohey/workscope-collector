@@ -29,10 +29,16 @@ status と action の組合せ::
     | active | "uninstall"     | grace_period 分後に uninstall_cb 呼出 |
     | active | "force_upload"  | force_upload_callback() を即座に呼出 |
 
+認証方式 (OAuth Refresh Token 方式 — v1.1-lite で SA から変更):
+- gdrive_uploader.py と同様、SA ではなく OAuth Refresh Token を使う。
+- 個人 Gmail のマイドライブで運用するため、SA だと quota の問題で
+  書き込めない。Workspace 契約後は共有ドライブ + SA に戻す予定。
+
 PII保護:
 - 取得対象はオペレーション指示の control.json のみ。ユーザーデータは含まない。
-- サービスアカウントは Drive 内の該当フォルダだけにスコープを限定する想定
-  (権限分離は呼出し側の責務、ここでは API 呼出しの実装のみ担保する)。
+- OAuth スコープは drive.file に限定 (このアプリが作成したファイルのみ)。
+  control.json は事前にこのアプリ経由で作成 or 共有ドライブ上で同等のスコープ
+  内で扱えること。
 """
 
 from __future__ import annotations
@@ -51,12 +57,12 @@ logger = logging.getLogger(__name__)
 
 # ---- Google API 依存 (gdrive_uploader と同じパターン) ---------------------
 try:
-    from google.oauth2 import service_account  # type: ignore
+    from google.oauth2.credentials import Credentials  # type: ignore
     from googleapiclient.discovery import build  # type: ignore
     from googleapiclient.http import MediaIoBaseDownload  # type: ignore
     _HAS_GDRIVE = True
 except ImportError:  # pragma: no cover - 実機ビルド時には必ず揃っている想定
-    service_account = None  # type: ignore
+    Credentials = None  # type: ignore
     build = None  # type: ignore
     MediaIoBaseDownload = None  # type: ignore
     _HAS_GDRIVE = False
@@ -81,8 +87,15 @@ _UPDATED_AT_MAX_AGE_DAYS = 30
 # 起動直後のスリープ (他の起動処理と被らないように)
 _INITIAL_SLEEP_SECONDS = 30.0
 
-# Google Drive スコープ (読み取りのみで十分)
-_GDRIVE_SCOPES = ("https://www.googleapis.com/auth/drive.readonly",)
+# Google Drive スコープ
+# drive.file: このアプリが作成 or 開いたファイルだけアクセス可能。
+# gdrive_uploader.py と同じスコープに揃え、書き込みも可能にしておく
+# (uploader 側と OAuth セッションを共有するため、片方が読み取り専用だと
+# 別資格情報が必要になり運用が煩雑になる)。
+_GDRIVE_SCOPES = ("https://www.googleapis.com/auth/drive.file",)
+
+# OAuth Refresh Token を access token に交換するエンドポイント (Google 固定値)
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 # ---- ヘルパー -------------------------------------------------------------
@@ -112,15 +125,35 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _decode_service_account(key_b64: str) -> Optional[dict]:
-    """base64 エンコードされたサービスアカウントキーをデコードして dict化."""
-    if not key_b64:
+def _decode_oauth_credentials(creds_b64: str) -> Optional[dict]:
+    """base64 エンコードされた OAuth 資格情報 JSON をデコードして dict化.
+
+    期待する JSON 形式::
+
+        {
+            "refresh_token": "1//0abc...",
+            "client_id": "xxx.apps.googleusercontent.com",
+            "client_secret": "GOCSPX-..."
+        }
+    """
+    if not creds_b64:
         return None
     try:
-        return json.loads(base64.b64decode(key_b64).decode("utf-8"))
+        info = json.loads(base64.b64decode(creds_b64).decode("utf-8"))
     except (ValueError, json.JSONDecodeError):
-        logger.exception("failed to decode service account key")
+        logger.exception("failed to decode oauth credentials")
         return None
+    if not isinstance(info, dict):
+        logger.error("oauth credentials must be a JSON object")
+        return None
+    for required_key in ("refresh_token", "client_id", "client_secret"):
+        if not info.get(required_key):
+            logger.error(
+                "oauth credentials missing required key: %s",
+                required_key,
+            )
+            return None
+    return info
 
 
 # ---- メインクラス ---------------------------------------------------------
@@ -133,7 +166,7 @@ class RemoteControlScheduler:
 
         sched = RemoteControlScheduler(
             folder_id="<drive folder id>",
-            service_account_key_b64="<base64 sa key>",
+            oauth_credentials_b64="<base64 oauth creds>",
             customer_id="tribe-001",
             force_upload_callback=lambda: uploader.trigger_now(),
             uninstall_callback=lambda: uninstaller.run(),
@@ -146,7 +179,7 @@ class RemoteControlScheduler:
     def __init__(
         self,
         folder_id: str,
-        service_account_key_b64: str,
+        oauth_credentials_b64: str,
         customer_id: str,
         poll_interval_minutes: int = 5,
         force_upload_callback: Optional[Callable[[], bool]] = None,
@@ -154,7 +187,7 @@ class RemoteControlScheduler:
         grace_period_minutes: int = 10,
     ) -> None:
         self._folder_id = folder_id or ""
-        self._service_account_key_b64 = service_account_key_b64 or ""
+        self._oauth_credentials_b64 = oauth_credentials_b64 or ""
         self._customer_id = customer_id or ""
         self._poll_interval_minutes = self._sanitize_poll_interval(
             poll_interval_minutes, fallback=5
@@ -185,7 +218,7 @@ class RemoteControlScheduler:
         """全パラメータが揃い、かつ google API ライブラリが import 可能か."""
         return bool(
             self._folder_id
-            and self._service_account_key_b64
+            and self._oauth_credentials_b64
             and self._customer_id
             and _HAS_GDRIVE
         )
@@ -433,18 +466,27 @@ class RemoteControlScheduler:
     # ---- internal: Google Drive --------------------------------------------
 
     def _get_service(self) -> Any:
-        """Drive サービスを lazy 初期化して返す."""
+        """Drive サービスを lazy 初期化して返す.
+
+        OAuth Refresh Token から Credentials を組み立て、Drive v3 クライアントを
+        返す。Access Token は Credentials が自動的にリフレッシュする。
+        """
         with self._service_lock:
             if self._service is not None:
                 return self._service
             if not _HAS_GDRIVE:
                 return None
-            key_dict = _decode_service_account(self._service_account_key_b64)
-            if key_dict is None:
+            info = _decode_oauth_credentials(self._oauth_credentials_b64)
+            if info is None:
                 return None
             try:
-                creds = service_account.Credentials.from_service_account_info(
-                    key_dict, scopes=list(_GDRIVE_SCOPES),
+                creds = Credentials(
+                    token=None,
+                    refresh_token=info["refresh_token"],
+                    client_id=info["client_id"],
+                    client_secret=info["client_secret"],
+                    token_uri=_GOOGLE_TOKEN_URI,
+                    scopes=list(_GDRIVE_SCOPES),
                 )
                 # cache_discovery=False: ファイルキャッシュ警告抑止
                 self._service = build(
@@ -468,8 +510,6 @@ class RemoteControlScheduler:
                 spaces="drive",
                 fields="files(id, name)",
                 pageSize=10,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
             ).execute()
         except Exception:
             logger.exception("Drive files.list (subfolder) failed")
@@ -496,8 +536,6 @@ class RemoteControlScheduler:
                 spaces="drive",
                 fields="files(id, name, modifiedTime)",
                 pageSize=10,
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
             ).execute()
         except Exception:
             logger.exception("Drive files.list (control.json) failed")
@@ -509,9 +547,7 @@ class RemoteControlScheduler:
 
     def _download_file_content(self, service: Any, file_id: str) -> Optional[bytes]:
         try:
-            request = service.files().get_media(
-                fileId=file_id, supportsAllDrives=True,
-            )
+            request = service.files().get_media(fileId=file_id)
             buf = io.BytesIO()
             if MediaIoBaseDownload is not None:
                 downloader = MediaIoBaseDownload(buf, request)
