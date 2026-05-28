@@ -1,0 +1,33 @@
+# WorkScope Collector v1.1-lite - Windows runtime dependencies
+# Python 3.11 (Windows x64)
+#
+# Lite版はスクリーンショット/OCR/PIIマスキングを行わないため、
+# PaddleOCR・opencv・PIL・mss・numpy 系の重量依存を除外する。
+# EXEサイズは Full(v1.0) の約180MB → Lite で約50MBを想定。
+#
+# Full版（薬局向けv1.0）は requirements.txt を使うこと。
+
+# ---- Windows OS API (UI Automation / プロセス情報 / フォアグラウンド検出) ----
+pywin32>=307,<312
+psutil==5.9.8
+uiautomation==2.0.18
+
+# ---- 入力イベント取得（キー種別・マウスクリック） ----
+keyboard==0.13.5
+mouse==0.7.1
+
+# ---- タスクトレイUI ----
+pystray==0.19.5
+Pillow==10.2.0           # pystray の依存（アイコン描画）
+
+# ---- Google Drive 直送（v1.1-lite 新規） ----
+google-api-python-client==2.149.0
+google-auth==2.34.0
+google-auth-httplib2==0.2.0
+
+# ---- 設定・ログ・日時 ----
+pydantic==2.6.1
+python-dateutil==2.8.2
+
+# ---- ビルド ----
+pyinstaller==6.4.0

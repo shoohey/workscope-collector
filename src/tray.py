@@ -37,6 +37,12 @@ from config import (
 )
 from version import __version__
 
+# v1.1-lite: 収集モード（"lite" のときはスクショ系メニューを隠す）
+try:
+    from config import COLLECTION_MODE as _COLLECTION_MODE
+except Exception:
+    _COLLECTION_MODE = "full"
+
 if TYPE_CHECKING:  # 循環 import 回避
     from collector import Collector  # noqa: F401
     from config import CollectorConfig  # noqa: F401
@@ -439,6 +445,8 @@ class Tray:
             MenuItem(
                 "直近のスクショを確認",
                 self._build_recent_submenu(),
+                # v1.1-lite: liteモードはスクショ取得しないので非表示
+                visible=lambda _i: _COLLECTION_MODE != "lite",
             ),
             MenuItem(
                 "収集状況を表示",

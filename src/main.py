@@ -32,6 +32,24 @@ if str(_SRC) not in sys.path:
 from config import APP_NAME, app_data_dir, load_config, logs_dir, CUSTOMER_NAME, DEFAULT_PROFILE, UPLOAD_ENDPOINT, UPLOAD_API_KEY  # noqa: E402
 from version import __version__  # noqa: E402
 
+# v1.1-lite: 収集モード/アップロードバックエンド/リモート制御の定数
+try:
+    from config import (  # noqa: E402
+        COLLECTION_MODE,
+        UPLOAD_BACKEND,
+        REMOTE_CONTROL_ENABLED,
+        GDRIVE_FOLDER_ID,
+        GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+        CUSTOMER_ID,
+    )
+except Exception:
+    COLLECTION_MODE = "full"
+    UPLOAD_BACKEND = "supabase"
+    REMOTE_CONTROL_ENABLED = False
+    GDRIVE_FOLDER_ID = ""
+    GDRIVE_SERVICE_ACCOUNT_KEY_B64 = ""
+    CUSTOMER_ID = ""
+
 # v1.0: 同意ゲート (consent_signed.json が無ければダイアログ → 同意 or 終了)
 try:
     from consent import ensure_consent_or_exit, is_consented  # type: ignore
@@ -48,6 +66,30 @@ try:
 except Exception:
     _HAS_UPLOADER = False
     UploadScheduler = None  # type: ignore
+
+# v1.1-lite: Google Drive 直送アップローダ
+try:
+    from gdrive_uploader import GDriveUploadScheduler  # type: ignore
+    _HAS_GDRIVE_UPLOADER = True
+except Exception:
+    _HAS_GDRIVE_UPLOADER = False
+    GDriveUploadScheduler = None  # type: ignore
+
+# v1.1-lite: リモート制御スケジューラ
+try:
+    from remote_control import RemoteControlScheduler  # type: ignore
+    _HAS_REMOTE_CONTROL = True
+except Exception:
+    _HAS_REMOTE_CONTROL = False
+    RemoteControlScheduler = None  # type: ignore
+
+# v1.1-lite: アンインストーラー（リモート制御からの uninstall 指示で呼ぶ）
+try:
+    from uninstaller import uninstall as _do_uninstall  # type: ignore
+    _HAS_UNINSTALLER = True
+except Exception:
+    _HAS_UNINSTALLER = False
+    _do_uninstall = None  # type: ignore
 
 
 logger = logging.getLogger("workscope")
@@ -320,24 +362,95 @@ def main() -> int:
     # Collector
     collector, _collector_thread = _start_collector(config)
 
-    # v1.0: クラウドアップロードスケジューラ起動 (config 設定 or ビルド埋め込みエンドポイントが両方あれば)
-    upload_endpoint = UPLOAD_ENDPOINT or ""
-    upload_key = UPLOAD_API_KEY or ""
-    upload_sched = None
-    if _HAS_UPLOADER and getattr(config, "upload_enabled", False) and upload_endpoint and upload_key:
-        try:
-            upload_sched = UploadScheduler(
-                endpoint=upload_endpoint,
-                api_key=upload_key,
-                interval_hours=getattr(config, "upload_interval_hours", 24.0),
-                quiet_hours_only=getattr(config, "upload_quiet_hours_only", True),
-                max_retry=getattr(config, "upload_max_retry", 5),
-                max_archive_mb=getattr(config, "upload_max_archive_mb", 200),
+    # ---- アップロードスケジューラ起動 ----
+    # v1.0: UPLOAD_BACKEND="supabase" の従来経路（Bearer/HTTPS multipart POST）
+    # v1.1-lite: UPLOAD_BACKEND="gdrive" の新経路（Google Drive直送）
+    upload_sched: Any = None
+    if UPLOAD_BACKEND == "gdrive":
+        if (
+            _HAS_GDRIVE_UPLOADER
+            and GDRIVE_FOLDER_ID
+            and GDRIVE_SERVICE_ACCOUNT_KEY_B64
+            and CUSTOMER_ID
+        ):
+            try:
+                upload_sched = GDriveUploadScheduler(
+                    folder_id=GDRIVE_FOLDER_ID,
+                    service_account_key_b64=GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+                    customer_id=CUSTOMER_ID,
+                    interval_minutes=int(getattr(config, "gdrive_upload_interval_minutes", 60)),
+                    max_retry=int(getattr(config, "upload_max_retry", 5)),
+                )
+                upload_sched.start()
+                logger.info("GDriveUploadScheduler started for customer=%s", CUSTOMER_ID)
+            except Exception:
+                logger.exception("GDriveUploadScheduler start failed; continuing without upload")
+                upload_sched = None
+        else:
+            logger.warning(
+                "UPLOAD_BACKEND=gdrive but configuration is incomplete; uploader not started"
             )
-            upload_sched.start()
+    else:
+        # 既存の Supabase 系経路（v1.0 薬局向け）
+        upload_endpoint = UPLOAD_ENDPOINT or ""
+        upload_key = UPLOAD_API_KEY or ""
+        if _HAS_UPLOADER and getattr(config, "upload_enabled", False) and upload_endpoint and upload_key:
+            try:
+                upload_sched = UploadScheduler(
+                    endpoint=upload_endpoint,
+                    api_key=upload_key,
+                    interval_hours=getattr(config, "upload_interval_hours", 24.0),
+                    quiet_hours_only=getattr(config, "upload_quiet_hours_only", True),
+                    max_retry=getattr(config, "upload_max_retry", 5),
+                    max_archive_mb=getattr(config, "upload_max_archive_mb", 200),
+                )
+                upload_sched.start()
+            except Exception:
+                logger.exception("UploadScheduler start failed; continuing in USB mode")
+                upload_sched = None
+
+    # ---- v1.1-lite: リモート制御スケジューラ起動 ----
+    remote_control_sched: Any = None
+    if (
+        REMOTE_CONTROL_ENABLED
+        and _HAS_REMOTE_CONTROL
+        and GDRIVE_FOLDER_ID
+        and GDRIVE_SERVICE_ACCOUNT_KEY_B64
+        and CUSTOMER_ID
+    ):
+        try:
+            def _force_upload_cb() -> bool:
+                if upload_sched is not None and hasattr(upload_sched, "trigger_now"):
+                    try:
+                        return bool(upload_sched.trigger_now())
+                    except Exception:
+                        logger.exception("force_upload callback failed")
+                return False
+
+            def _uninstall_cb() -> None:
+                if not (_HAS_UNINSTALLER and _do_uninstall is not None):
+                    logger.error("uninstall requested but uninstaller is unavailable")
+                    return
+                logger.warning("remote uninstall executing now")
+                try:
+                    _do_uninstall(delete_appdata=True, remove_startup=True, exit_after=True)
+                except Exception:
+                    logger.exception("remote uninstall failed")
+
+            remote_control_sched = RemoteControlScheduler(
+                folder_id=GDRIVE_FOLDER_ID,
+                service_account_key_b64=GDRIVE_SERVICE_ACCOUNT_KEY_B64,
+                customer_id=CUSTOMER_ID,
+                poll_interval_minutes=int(getattr(config, "remote_control_poll_interval_minutes", 5)),
+                force_upload_callback=_force_upload_cb,
+                uninstall_callback=_uninstall_cb,
+                grace_period_minutes=int(getattr(config, "uninstall_grace_period_minutes", 10)),
+            )
+            remote_control_sched.start()
+            logger.info("RemoteControlScheduler started for customer=%s", CUSTOMER_ID)
         except Exception:
-            logger.exception("UploadScheduler start failed; continuing in USB mode")
-            upload_sched = None
+            logger.exception("RemoteControlScheduler start failed; continuing without remote control")
+            remote_control_sched = None
 
     # Tray (メインスレッド) - upload_scheduler を渡してメニューから手動送信可能に
     from tray import Tray  # 遅延 import: PIL 依存で初期化が重い

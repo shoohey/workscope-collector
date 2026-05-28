@@ -26,6 +26,28 @@ UPLOAD_API_KEY = ""
 # 安全側の既定は False。クラウドアップロード運用に切り替える顧客では絶対に True にしない。
 RAW_CAPTURE_MODE_DEFAULT: bool = False
 
+# ---- v1.1-lite: 収集モード・アップロードバックエンド・リモート制御 ----
+# 既定は "full" (v1.0 薬局向け: スクショ+OCR+マスキング+Supabase)。
+# build_for_customer.sh --mode lite で "lite" に焼き付けると、
+# スクショ/OCR/マスキングを一切行わず、JSONLのみGoogle Drive直送する。
+COLLECTION_MODE: str = "full"  # "full" | "lite"
+
+# アップロードバックエンド。"supabase"=既存uploader.py、"gdrive"=gdrive_uploader.py。
+# COLLECTION_MODE="lite" の顧客は "gdrive" を選ぶ想定。
+UPLOAD_BACKEND: str = "supabase"  # "supabase" | "gdrive"
+
+# Google Drive 共有ドライブ内の顧客フォルダID（drive.files.list/createで使用）
+GDRIVE_FOLDER_ID: str = ""
+
+# サービスアカウントJSONキー（base64エンコード文字列、ビルド時埋め込み）
+GDRIVE_SERVICE_ACCOUNT_KEY_B64: str = ""
+
+# 顧客ID（control.json/customer別フォルダで使用、tribe-001 等）
+CUSTOMER_ID: str = ""
+
+# リモート制御（control.jsonポーリング）有効化。COLLECTION_MODE="lite"で自動有効化。
+REMOTE_CONTROL_ENABLED: bool = False
+
 
 def app_data_dir() -> Path:
     base = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
@@ -116,6 +138,16 @@ class CollectorConfig:
     upload_quiet_hours_only: bool = True  # 営業時間外のみ送信
     upload_max_retry: int = 5
     upload_max_archive_mb: int = 200
+
+    # ---- v1.1-lite ----
+    # 収集モード（"full" or "lite"）。liteではスクショ/OCR/マスキングを行わない。
+    collection_mode: str = "full"
+    # Google Drive直送モードのアップロード間隔（分）
+    gdrive_upload_interval_minutes: int = 60
+    # リモート制御ポーリング間隔（分）。1〜60で control.json により上書き可。
+    remote_control_poll_interval_minutes: int = 5
+    # アンインストール指示の取消猶予（分）
+    uninstall_grace_period_minutes: int = 10
 
     # Storage
     keep_screenshots_days: int = 30

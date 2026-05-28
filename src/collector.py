@@ -60,6 +60,14 @@ from config import (
     logs_dir,
     pause_flag_file,
 )
+
+# v1.1-lite: 収集モード（"full" or "lite"）。ビルド時に _build_constants.py 経由で
+# "lite" に焼き付けられている顧客では、capture/OCR/mask をスキップし
+# metadata-only で JSONL を書き込む。フル動作（v1.0 薬局向け）は無変更。
+try:
+    from config import COLLECTION_MODE as _COLLECTION_MODE
+except Exception:
+    _COLLECTION_MODE = "full"
 from storage import (
     EventStore,
     ScreenshotStore,
@@ -657,6 +665,12 @@ class Collector:
         if not self._under_rate_limit(now):
             logger.warning("rate limit exceeded: skip")
             return None
+
+        # v1.1-lite: liteモードではキャプチャ/OCR/マスクを一切行わず、
+        # window/uia/key/mouse のメタデータのみ JSONL に書き込む。
+        # rate limit カウントは進めない（capture していないため）。
+        if _COLLECTION_MODE == "lite":
+            return self._write_event(info, prev_proc, dwell_ms_prev, None, [], None)
 
         # ---- キャプチャ（マルチモニター対応） ----
         # capture_active_monitor_only=True なら従来通りフォーカス側1枚のみ。
