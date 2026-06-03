@@ -1,26 +1,28 @@
 # AppVeyor: WorkScope Collector の Windows EXE ビルド
 #
-# GitHub Actions がアカウントレベル制限で使えない場合の主CI。
-# AppVeyor は Windows ビルドが本業で、Free プラン (private repo) でも
-# 月60分 / 同時1ジョブが利用可能。GitHub OAuth で連携。
+# GitHub Actions はこのアカウントでは無効（アカウントレベル制限）のため、
+# AppVeyor が唯一の Windows ビルド経路。Windows実機が無くても（Macだけでも）
+# AppVeyor の Web UI「NEW BUILD」or REST API で環境変数を渡せばEXEを作れる。
 #
-# === 2モードのビルド ===
+# === 3モードのビルド ===
 #
 # (1) 汎用ビルド: main ブランチへの push で自動起動
-#     - 環境変数 CUSTOMER_NAME が空の場合、汎用 WorkScope.exe を生成
-#     - 後方互換: 全プロファイルを同梱、定数も書き換えなし
+#     - CUSTOMER_NAME 空 → 汎用 WorkScope.exe（全プロファイル同梱・定数書換なし）
 #
-# (2) 顧客別ビルド: AppVeyor Web UI の「NEW BUILD」で環境変数を上書き
-#     - CUSTOMER_NAME=<顧客名>           (例: "村上薬局")
-#     - INDUSTRY=<業界プロファイル>      (例: "pharmacy")
-#     - ENDPOINT=<クラウド送信先URL>      (空 = USB回収モード)
-#     - API_KEY=<Bearer APIキー>         (空 = USB回収モード)
-#     ↓
-#     - profiles/ を {base, INDUSTRY}.json のみに削減
-#     - src/_build_constants.py を生成
-#     - src/config.py に bootstrap 追記
-#     - 同意書 docs/consent_form.html のテンプレ {{...}} を置換
-#     - EXE名: WorkScope_<CUSTOMER_NAME>_<YYYYMMDD>.exe
+# (2) 顧客別 Full ビルド（v1.0 薬局向け: スクショ+OCR+マスキング+Supabase）
+#     AppVeyor「NEW BUILD」で環境変数を上書き:
+#       CUSTOMER_NAME=<顧客名>   INDUSTRY=<業界>   ENDPOINT=<URL>   API_KEY=<key>
+#
+# (3) 顧客別 Lite ビルド（v1.1-lite 一般企業向け: JSONLのみ+Google Drive直送+リモート制御）
+#     AppVeyor「NEW BUILD」で環境変数を上書き:
+#       CUSTOMER_NAME=<顧客名>
+#       MODE=lite
+#       CUSTOMER_ID=<tribe-001 等>
+#       GDRIVE_FOLDER_ID=<Drive顧客フォルダID>
+#       GDRIVE_OAUTH_CREDENTIALS_B64=<oauth json の base64>   ← secure variable 推奨
+#       (INDUSTRY は任意。空なら generic)
+#     base64 生成（Mac）: base64 -i oauth-tribe-001.json | tr -d '\n'
+#     ↓ EXE名: WorkScope_<CUSTOMER_NAME>_<YYYYMMDD>.exe（requirements-lite で軽量ビルド）
 
 image: Visual Studio 2022
 
@@ -33,6 +35,13 @@ environment:
   INDUSTRY: ""
   ENDPOINT: ""
   API_KEY: ""
+  # v1.1-lite 追加。MODE=lite で Lite ビルド。
+  MODE: ""
+  CUSTOMER_ID: ""
+  GDRIVE_FOLDER_ID: ""
+  # OAuth 資格情報 JSON (refresh_token/client_id/client_secret) の base64。
+  # secure variable として設定すること（ログ・履歴に平文を残さない）。
+  GDRIVE_OAUTH_CREDENTIALS_B64: ""
 
 # キャッシュ: pip + PaddleOCR モデル
 cache:
@@ -46,21 +55,150 @@ branches:
 
 skip_tags: false
 
+# ============================================================
+# install: MODE=lite なら requirements-lite.txt（軽量）、それ以外は requirements.txt
+# ============================================================
 install:
-  - SET PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
-  - python --version
-  - python -m pip install --upgrade pip wheel setuptools
-  - pip install -r requirements.txt
-  - pip list
+  - ps: |
+      $ErrorActionPreference = "Stop"
+      $env:PATH = "$env:PYTHON;$env:PYTHON\Scripts;$env:PATH"
+      python --version
+      python -m pip install --upgrade pip wheel setuptools
+      if ($env:MODE -eq "lite") {
+        Write-Host "Installing LITE dependencies (requirements-lite.txt)"
+        pip install -r requirements-lite.txt
+      } else {
+        Write-Host "Installing FULL dependencies (requirements.txt)"
+        pip install -r requirements.txt
+      }
+      pip list
 
 # ============================================================
 # before_build: 顧客別ビルドモードなら profiles 削減 + 定数注入 + 同意書置換
+#   MODE=lite → Lite 定数(Google Drive/リモート制御/OAuth) + lite 同意書
+#   それ以外  → Full 定数(Supabase) + 通常同意書
 # ============================================================
 before_build:
   - ps: |
-      if ($env:CUSTOMER_NAME) {
+      if (-not $env:CUSTOMER_NAME) {
         Write-Host "================================================="
-        Write-Host " Customer Build Mode"
+        Write-Host " Generic Build Mode (CUSTOMER_NAME not set)"
+        Write-Host "================================================="
+        return
+      }
+
+      $buildDate = Get-Date -Format 'yyyyMMdd'
+      $bcPath = "src\_build_constants.py"
+      $cfg = "src\config.py"
+
+      if ($env:MODE -eq "lite") {
+        # =========================================================
+        #  Lite Customer Build (v1.1-lite)
+        # =========================================================
+        Write-Host "================================================="
+        Write-Host " Customer Build Mode (LITE / Google Drive)"
+        Write-Host "   Customer:    $env:CUSTOMER_NAME"
+        Write-Host "   CustomerID:  $env:CUSTOMER_ID"
+        Write-Host "   GDrive folder: $env:GDRIVE_FOLDER_ID"
+        Write-Host "   OAuth creds: $(if ($env:GDRIVE_OAUTH_CREDENTIALS_B64) { '***set (base64)***' } else { '<MISSING>' })"
+        Write-Host "================================================="
+
+        if (-not $env:CUSTOMER_ID)               { Write-Error "CUSTOMER_ID is required in lite mode (例: tribe-001)"; exit 1 }
+        if (-not $env:GDRIVE_FOLDER_ID)          { Write-Error "GDRIVE_FOLDER_ID is required in lite mode"; exit 1 }
+        if (-not $env:GDRIVE_OAUTH_CREDENTIALS_B64) { Write-Error "GDRIVE_OAUTH_CREDENTIALS_B64 is required in lite mode"; exit 1 }
+
+        $industry = if ($env:INDUSTRY) { $env:INDUSTRY } else { "generic" }
+
+        # OAuth base64 の健全性チェック（中身は出力しない）
+        $env:GDRIVE_OAUTH_CREDENTIALS_B64 | python -c "import sys,base64,json; raw=base64.b64decode(sys.stdin.read().strip()); d=json.loads(raw); req=['refresh_token','client_id','client_secret']; miss=[k for k in req if not d.get(k)]; sys.exit('ERROR: oauth json missing keys: %s' % miss) if miss else print('oauth b64 OK (keys present)')"
+        if ($LASTEXITCODE -ne 0) { Write-Error "GDRIVE_OAUTH_CREDENTIALS_B64 is not a valid base64 of an oauth JSON with refresh_token/client_id/client_secret"; exit 1 }
+
+        # 1. profiles を {base, industry} に削減
+        $profilePath = "profiles\$industry.json"
+        if (-not (Test-Path $profilePath)) {
+          Write-Error "profile not found: $profilePath"
+          Get-ChildItem profiles\*.json | ForEach-Object { Write-Host "  - $($_.BaseName)" }
+          exit 1
+        }
+        Get-ChildItem profiles\*.json | ForEach-Object {
+          $name = $_.BaseName
+          if ($name -ne $industry -and $name -ne "base") { Remove-Item $_.FullName -Force }
+        }
+
+        # 2. _build_constants.py 生成（OAuth base64 はファイルに直書き、ログ非出力）
+        Set-Content -Path $bcPath -Value "# Auto-generated by AppVeyor (lite) - DO NOT COMMIT" -Encoding UTF8
+        Add-Content -Path $bcPath -Value ('CUSTOMER_NAME = "' + $env:CUSTOMER_NAME + '"')
+        Add-Content -Path $bcPath -Value ('DEFAULT_PROFILE = "' + $industry + '"')
+        Add-Content -Path $bcPath -Value 'UPLOAD_ENDPOINT = ""'
+        Add-Content -Path $bcPath -Value 'UPLOAD_API_KEY = ""'
+        Add-Content -Path $bcPath -Value ('BUILD_DATE = "' + $buildDate + '"')
+        Add-Content -Path $bcPath -Value 'RAW_CAPTURE_MODE_DEFAULT = False'
+        Add-Content -Path $bcPath -Value 'COLLECTION_MODE = "lite"'
+        Add-Content -Path $bcPath -Value 'UPLOAD_BACKEND = "gdrive"'
+        Add-Content -Path $bcPath -Value 'REMOTE_CONTROL_ENABLED = True'
+        Add-Content -Path $bcPath -Value ('CUSTOMER_ID = "' + $env:CUSTOMER_ID + '"')
+        Add-Content -Path $bcPath -Value ('GDRIVE_FOLDER_ID = "' + $env:GDRIVE_FOLDER_ID + '"')
+        Add-Content -Path $bcPath -Value ('GDRIVE_OAUTH_CREDENTIALS_B64 = "' + $env:GDRIVE_OAUTH_CREDENTIALS_B64 + '"')
+        Write-Host "  generated $bcPath (lite constants)"
+
+        # 3. config.py に bootstrap 追記（full + lite 両定数を読む包括版）
+        Add-Content -Path $cfg -Value ""
+        Add-Content -Path $cfg -Value "# v1.1-lite: ビルド時定数の上書き (AppVeyor _build_constants.py)"
+        Add-Content -Path $cfg -Value "try:"
+        Add-Content -Path $cfg -Value "    from _build_constants import ("
+        Add-Content -Path $cfg -Value "        CUSTOMER_NAME as _BUILD_CUSTOMER_NAME,"
+        Add-Content -Path $cfg -Value "        DEFAULT_PROFILE as _BUILD_DEFAULT_PROFILE,"
+        Add-Content -Path $cfg -Value "    )"
+        Add-Content -Path $cfg -Value "    if _BUILD_CUSTOMER_NAME:"
+        Add-Content -Path $cfg -Value "        CUSTOMER_NAME = _BUILD_CUSTOMER_NAME"
+        Add-Content -Path $cfg -Value "    if _BUILD_DEFAULT_PROFILE:"
+        Add-Content -Path $cfg -Value "        DEFAULT_PROFILE = _BUILD_DEFAULT_PROFILE"
+        Add-Content -Path $cfg -Value "    from _build_constants import ("
+        Add-Content -Path $cfg -Value "        COLLECTION_MODE as _BUILD_COLLECTION_MODE,"
+        Add-Content -Path $cfg -Value "        UPLOAD_BACKEND as _BUILD_UPLOAD_BACKEND,"
+        Add-Content -Path $cfg -Value "        REMOTE_CONTROL_ENABLED as _BUILD_REMOTE_CONTROL_ENABLED,"
+        Add-Content -Path $cfg -Value "        CUSTOMER_ID as _BUILD_CUSTOMER_ID,"
+        Add-Content -Path $cfg -Value "        GDRIVE_FOLDER_ID as _BUILD_GDRIVE_FOLDER_ID,"
+        Add-Content -Path $cfg -Value "        GDRIVE_OAUTH_CREDENTIALS_B64 as _BUILD_GDRIVE_OAUTH_CREDS_B64,"
+        Add-Content -Path $cfg -Value "    )"
+        Add-Content -Path $cfg -Value "    if _BUILD_COLLECTION_MODE:"
+        Add-Content -Path $cfg -Value "        COLLECTION_MODE = _BUILD_COLLECTION_MODE"
+        Add-Content -Path $cfg -Value "    if _BUILD_UPLOAD_BACKEND:"
+        Add-Content -Path $cfg -Value "        UPLOAD_BACKEND = _BUILD_UPLOAD_BACKEND"
+        Add-Content -Path $cfg -Value "    REMOTE_CONTROL_ENABLED = bool(_BUILD_REMOTE_CONTROL_ENABLED)"
+        Add-Content -Path $cfg -Value "    if _BUILD_CUSTOMER_ID:"
+        Add-Content -Path $cfg -Value "        CUSTOMER_ID = _BUILD_CUSTOMER_ID"
+        Add-Content -Path $cfg -Value "    if _BUILD_GDRIVE_FOLDER_ID:"
+        Add-Content -Path $cfg -Value "        GDRIVE_FOLDER_ID = _BUILD_GDRIVE_FOLDER_ID"
+        Add-Content -Path $cfg -Value "    if _BUILD_GDRIVE_OAUTH_CREDS_B64:"
+        Add-Content -Path $cfg -Value "        GDRIVE_OAUTH_CREDENTIALS_B64 = _BUILD_GDRIVE_OAUTH_CREDS_B64"
+        Add-Content -Path $cfg -Value "except ImportError:"
+        Add-Content -Path $cfg -Value "    pass"
+        Write-Host "  appended lite bootstrap to $cfg"
+
+        # 4. lite 同意書を採用 + テンプレ置換
+        if (Test-Path docs\consent_form_lite.html) {
+          Copy-Item docs\consent_form_lite.html docs\consent_form.html -Force
+          Write-Host "  using consent_form_lite.html"
+        }
+        if (Test-Path docs\consent_form.html) {
+          $consent = Get-Content docs\consent_form.html -Raw -Encoding UTF8
+          $consent = $consent.Replace("{{CUSTOMER_NAME}}", $env:CUSTOMER_NAME)
+          $consent = $consent.Replace("{{CUSTOMER_ID}}", $env:CUSTOMER_ID)
+          $consent = $consent.Replace("{{ENDPOINT}}", "Google Drive (folder: $env:GDRIVE_FOLDER_ID)")
+          $consent = $consent.Replace("{{BUILD_DATE}}", $buildDate)
+          $consent = $consent.Replace("{{COMPANY_NAME}}", "株式会社TRIBE")
+          $consent = $consent.Replace("{{SUPPORT_EMAIL}}", "support@tribe.example")
+          Set-Content -Path docs\consent_form.html -Value $consent -Encoding UTF8
+          Write-Host "  rendered docs\consent_form.html (lite)"
+        }
+
+      } else {
+        # =========================================================
+        #  Full Customer Build (v1.0 薬局向け) — 既存ロジック
+        # =========================================================
+        Write-Host "================================================="
+        Write-Host " Customer Build Mode (FULL)"
         Write-Host "   Customer: $env:CUSTOMER_NAME"
         Write-Host "   Industry: $env:INDUSTRY"
         Write-Host "   Endpoint: $(if ($env:ENDPOINT) { $env:ENDPOINT } else { '<USB回収>' })"
@@ -68,7 +206,7 @@ before_build:
         Write-Host "================================================="
 
         if (-not $env:INDUSTRY) {
-          Write-Error "INDUSTRY env var is required when CUSTOMER_NAME is set"
+          Write-Error "INDUSTRY env var is required when CUSTOMER_NAME is set (full mode)"
           exit 1
         }
 
@@ -76,7 +214,6 @@ before_build:
         $profilePath = "profiles\$($env:INDUSTRY).json"
         if (-not (Test-Path $profilePath)) {
           Write-Error "profile not found: $profilePath"
-          Write-Host "Available profiles:"
           Get-ChildItem profiles\*.json | ForEach-Object { Write-Host "  - $($_.BaseName)" }
           exit 1
         }
@@ -89,10 +226,6 @@ before_build:
         }
 
         # 2. _build_constants.py を生成 (gitignore 対象)
-        # NOTE: PowerShell here-string は YAML インデントと衝突するため、
-        # 代わりに行ごと Add-Content で構築する。
-        $buildDate = Get-Date -Format 'yyyyMMdd'
-        $bcPath = "src\_build_constants.py"
         Set-Content -Path $bcPath -Value "# Auto-generated by AppVeyor - DO NOT COMMIT" -Encoding UTF8
         Add-Content -Path $bcPath -Value ('CUSTOMER_NAME = "' + $env:CUSTOMER_NAME + '"')
         Add-Content -Path $bcPath -Value ('DEFAULT_PROFILE = "' + $env:INDUSTRY + '"')
@@ -102,7 +235,6 @@ before_build:
         Write-Host "  generated $bcPath"
 
         # 3. config.py に bootstrap 追記 (build_for_customer.sh と同じロジック)
-        $cfg = "src\config.py"
         Add-Content -Path $cfg -Value ""
         Add-Content -Path $cfg -Value "# v1.0: ビルド時定数の上書き (AppVeyor _build_constants.py)"
         Add-Content -Path $cfg -Value "try:"
@@ -134,10 +266,6 @@ before_build:
           Set-Content -Path docs\consent_form.html -Value $consent -Encoding UTF8
           Write-Host "  rendered docs\consent_form.html"
         }
-      } else {
-        Write-Host "================================================="
-        Write-Host " Generic Build Mode (CUSTOMER_NAME not set)"
-        Write-Host "================================================="
       }
 
 # ============================================================
@@ -155,7 +283,7 @@ build_script:
       $ErrorActionPreference = "Continue"
 
       Write-Host "================================================="
-      Write-Host " Building main EXE (CUSTOMER_NAME='$env:CUSTOMER_NAME')"
+      Write-Host " Building main EXE (CUSTOMER_NAME='$env:CUSTOMER_NAME', MODE='$env:MODE')"
       Write-Host "================================================="
       pyinstaller pyinstaller.spec --noconfirm --clean --log-level WARN 2>&1 | Out-Host
       if ($LASTEXITCODE -ne 0) {
