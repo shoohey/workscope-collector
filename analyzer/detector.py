@@ -1,6 +1,7 @@
 """業務単位グルーピング + 反復パターン検出.
 
-入力: WorkScope Collector が生成する schema_version=2 の JSONL
+入力: WorkScope Collector が生成する schema_version=2/3 の JSONL
+       （v3 では各イベントに device_id / hostname が付与され、PC単位で分離解析できる）
 出力: 業務一覧 + 反復パターン (N-gram) + アプリ別時間配分
 
 設計方針:
@@ -123,6 +124,45 @@ def detect_work_units(
     return units
 
 
+# ---- PC単位のグルーピング（複数PC運用時の混線防止） --------------------
+
+def group_events_by_device(events: Iterable[dict]) -> dict[str, list[dict]]:
+    """イベントを device_id 単位にグルーピングし、各群を ts 昇順に並べる.
+
+    同一顧客フォルダに複数 PC のJSONLが集約されている場合に、PC を跨いだ
+    偽の業務遷移・滞在時間が生成されるのを防ぐための前処理。
+
+    キーの解決順:
+    - device_id（schema v3 以降。端末固定）を最優先
+    - 無ければ session_id（schema v2 以前。プロセス単位だが、少なくとも
+      別セッションの混線は防げる）
+    - どちらも無ければ "unknown"
+    """
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for ev in events:
+        key = ev.get("device_id") or ev.get("session_id") or "unknown"
+        groups[key].append(ev)
+    for key in groups:
+        groups[key].sort(key=lambda e: e.get("ts") or "")
+    return dict(groups)
+
+
+def detect_work_units_per_device(
+    events: Iterable[dict],
+    split_dwell_seconds: float = 300.0,
+) -> dict[str, list[WorkUnit]]:
+    """device_id ごとに WorkUnit を検出して返す（PC単位の分離解析）.
+
+    各 PC（device_id）内でのみ連続イベント列を業務単位に分割するため、
+    PC-A の最後のアプリから PC-B の最初のアプリへの偽遷移が生じない。
+    """
+    grouped = group_events_by_device(events)
+    return {
+        dev: detect_work_units(evs, split_dwell_seconds)
+        for dev, evs in grouped.items()
+    }
+
+
 # ---- 反復パターン検出 (N-gram) ------------------------------------------
 
 def detect_repeated_patterns(
@@ -187,6 +227,8 @@ __all__ = [
     "RepeatedPattern",
     "load_events",
     "detect_work_units",
+    "group_events_by_device",
+    "detect_work_units_per_device",
     "detect_repeated_patterns",
     "app_time_distribution",
     "process_time_distribution",

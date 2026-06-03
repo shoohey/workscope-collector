@@ -117,8 +117,8 @@ def test_pharmacy_prescription_entry_workflow(tmp_path, monkeypatch):
     for i, title in enumerate(titles, start=1):
         ev = collector.process(_info(cm, hwnd=i, title=title, proc="ReceptyNEXT.exe"))
         assert ev is not None
-        # 全イベント schema_version=2
-        assert ev["schema_version"] == 2
+        # 全イベント schema_version=3
+        assert ev["schema_version"] == 3
         # アプリ分類: industry_medical
         assert ev["app"]["category"] == "industry_medical"
         assert ev["app"]["rpa_target"] == "pywinauto"

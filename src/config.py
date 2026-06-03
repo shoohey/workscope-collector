@@ -7,7 +7,10 @@ All settings are centralized here. Pharmacy-specific tuning happens via
 from __future__ import annotations
 
 import json
+import logging
 import os
+import socket
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -96,6 +99,54 @@ def state_file() -> Path:
 
 def pause_flag_file() -> Path:
     return app_data_dir() / "PAUSED"
+
+
+# ---- 端末識別子（PC単位のデータ分離用） ----------------------------------
+# session_id（collector が起動毎に発番する uuid4）は再起動で変わるため、
+# 「どの PC のデータか」を一意に表せない。1顧客が複数 PC に導入するケースで、
+# 解析時にデータを PC 単位で分離・帰属できるよう、端末固定の device_id を
+# %APPDATA%\WorkScope\device_id.txt に初回生成して以後再利用する。
+# - 再起動・再ログインを跨いで安定（同一 PC では常に同じ値）
+# - アンインストール（%APPDATA%\WorkScope 削除）→再導入では新規発番される
+#   （= 新しい導入とみなす。実運用上問題ない）
+# - platform.node() / uuid.getnode() は仮想化・NIC 変更で不安定なため主キーに
+#   使わず、人間可読の補助ラベルとして socket.gethostname() を併記する。
+
+def device_id_file() -> Path:
+    return app_data_dir() / "device_id.txt"
+
+
+def resolve_device_id() -> str:
+    """端末固定の device_id を解決して返す（12桁hex）.
+
+    %APPDATA%\\WorkScope\\device_id.txt があればそれを再利用、無ければ
+    uuid4 から 12 桁の hex を生成して保存する。ファイル名にも安全な文字種。
+    永続化に失敗しても収集は止めず、揮発的な値を返す（安全側）。
+    """
+    p = device_id_file()
+    try:
+        if p.exists():
+            existing = p.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+    except OSError:
+        logging.getLogger(__name__).warning("device_id 読み込み失敗; 再生成する")
+    new_id = uuid.uuid4().hex[:12]
+    try:
+        p.write_text(new_id, encoding="utf-8")
+    except OSError:
+        logging.getLogger(__name__).warning(
+            "device_id の永続化に失敗; この起動中のみ有効な揮発IDを使用"
+        )
+    return new_id
+
+
+def resolve_hostname() -> str:
+    """PC名（人間可読の補助ラベル）。取得失敗時は空文字."""
+    try:
+        return (socket.gethostname() or "").strip()
+    except Exception:
+        return ""
 
 
 @dataclass

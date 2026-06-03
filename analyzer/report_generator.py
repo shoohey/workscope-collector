@@ -132,8 +132,14 @@ def render_html(
     units: list[WorkUnit],
     patterns: list[RepeatedPattern],
     candidates: list[AutomationCandidate],
+    device_summary: list[dict] | None = None,
 ) -> str:
-    """業務マップ HTML を生成して文字列で返す."""
+    """業務マップ HTML を生成して文字列で返す.
+
+    device_summary を渡すと「PC別 内訳」セクションを追加する。各要素は
+    {"device_id": str, "hostname": str, "unit_count": int, "duration_ms": int}。
+    複数PC運用時に、どの PC が何の業務にどれだけ時間を使ったかを分離表示する。
+    """
     total_ms = sum(u.duration_ms for u in units)
     total_minutes = _ms_to_min(total_ms)
     monthly_total_minutes = total_minutes * (20 / max(1, observation_days))
@@ -187,6 +193,28 @@ def render_html(
             f'</div>'
         )
     parts.append('</div>')
+
+    # PC別 内訳（複数PC運用時のみ表示）
+    if device_summary:
+        parts.append('<h2>PC別 内訳</h2>')
+        parts.append(
+            '<div class="lead">対象 PC 台数: '
+            f'<strong>{len(device_summary)}台</strong>'
+            '（端末ごとにデータを分離して集計しています）</div>'
+        )
+        parts.append('<table>')
+        parts.append('<tr><th>PC名</th><th>device_id</th>'
+                     '<th>業務単位数</th><th>累積作業時間</th></tr>')
+        for d in sorted(device_summary, key=lambda x: -int(x.get("duration_ms", 0))):
+            host = html.escape(str(d.get("hostname") or "(PC名不明)"))
+            dev = html.escape(str(d.get("device_id") or ""))
+            parts.append(
+                f'<tr><td>{host}</td>'
+                f'<td><code>{dev}</code></td>'
+                f'<td>{int(d.get("unit_count", 0))}件</td>'
+                f'<td>{_format_duration(int(d.get("duration_ms", 0)))}</td></tr>'
+            )
+        parts.append('</table>')
 
     # アプリ別時間配分
     parts.append('<h2>アプリ別 時間配分</h2>')
@@ -257,6 +285,7 @@ def write_report(
     units: list[WorkUnit],
     patterns: list[RepeatedPattern],
     candidates: list[AutomationCandidate],
+    device_summary: list[dict] | None = None,
 ) -> Path:
     """HTMLレポートをファイル出力."""
     html_content = render_html(
@@ -264,6 +293,7 @@ def write_report(
         industry_profile=industry_profile,
         observation_days=observation_days,
         units=units, patterns=patterns, candidates=candidates,
+        device_summary=device_summary,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html_content, encoding="utf-8")

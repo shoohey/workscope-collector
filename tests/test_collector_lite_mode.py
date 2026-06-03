@@ -65,8 +65,10 @@ def test_lite_mode_emits_metadata_only_event(isolated_env):
     col.process(_info(cm, hwnd=1))
     ev = col.process(_info(cm, hwnd=2))
     assert ev is not None, "lite mode でもイベントは書かれるべき"
-    assert ev["schema_version"] == 2
+    assert ev["schema_version"] == 3
     assert ev["event_type"] == "window_focus"
+    # lite でも PC単位分離のための device_id は付与される
+    assert ev.get("device_id")
     assert ev["screenshot"] is None, "lite mode で screenshot は None"
     assert ev["additional_screenshots"] == [], "additional_screenshots も空"
     # アプリ分類等のメタデータは引き続き含まれる

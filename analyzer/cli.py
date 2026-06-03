@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .detector import (
     detect_repeated_patterns,
-    detect_work_units,
+    detect_work_units_per_device,
     load_events,
 )
 from .report_generator import write_report
@@ -44,6 +44,8 @@ def main() -> int:
                         help="反復パターンとみなす最小観測回数")
     parser.add_argument("--top-n", default=10, type=int,
                         help="RPA生成する上位候補数")
+    parser.add_argument("--device", default=None, type=str,
+                        help="特定の device_id のみを解析（省略=全PCをPC別に分離して解析）")
     args = parser.parse_args()
 
     if not args.events.exists():
@@ -54,11 +56,48 @@ def main() -> int:
     events = list(load_events(args.events))
     print(f"      loaded {len(events)} events")
 
-    print("[2/4] detecting work units & patterns...")
-    units = detect_work_units(events)
+    print("[2/4] detecting work units & patterns (PC単位で分離)...")
+    # device_id ごとに業務単位を検出する。これにより、同一顧客フォルダに
+    # 複数 PC のデータが集約されていても、PC を跨いだ偽の業務遷移・滞在時間が
+    # 生成されない。--device 指定時はその PC のみを対象にする。
+    units_by_device = detect_work_units_per_device(events)
+    if args.device is not None:
+        units_by_device = {
+            k: v for k, v in units_by_device.items() if k == args.device
+        }
+        if not units_by_device:
+            print(f"ERROR: device_id not found: {args.device}", file=sys.stderr)
+            return 1
+
+    # 各 PC の hostname ラベルを集計（人間可読の PC 名）
+    host_by_device: dict[str, str] = {}
+    for ev in events:
+        dev = ev.get("device_id") or ev.get("session_id") or "unknown"
+        host = ev.get("hostname") or ""
+        if host and dev not in host_by_device:
+            host_by_device[dev] = host
+
+    device_summary = []
+    units = []  # 全 PC の業務単位を結合（各 unit は PC 内で閉じている）
+    for dev, dev_units in sorted(units_by_device.items()):
+        units.extend(dev_units)
+        dev_ms = sum(u.duration_ms for u in dev_units)
+        device_summary.append({
+            "device_id": dev,
+            "hostname": host_by_device.get(dev, ""),
+            "unit_count": len(dev_units),
+            "duration_ms": dev_ms,
+        })
+
     patterns = detect_repeated_patterns(units, n=args.ngram,
                                          min_occurrences=args.min_occurrences)
-    print(f"      {len(units)} work units, {len(patterns)} patterns")
+    print(f"      {len(units_by_device)} PC / {len(units)} work units, "
+          f"{len(patterns)} patterns")
+    for d in device_summary:
+        label = d["hostname"] or "(PC名不明)"
+        mins = d["duration_ms"] // (1000 * 60)
+        print(f"        - {label} [{d['device_id']}]: "
+              f"{d['unit_count']}業務単位 / 約{mins}分")
 
     print("[3/4] scoring automation candidates...")
     candidates = score_patterns(patterns, observation_days=args.days)
@@ -71,6 +110,7 @@ def main() -> int:
         industry_profile=args.industry,
         observation_days=args.days,
         units=units, patterns=patterns, candidates=candidates,
+        device_summary=device_summary,
     )
 
     if args.rpa_output is not None:
