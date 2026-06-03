@@ -72,6 +72,7 @@ from uploader import (  # type: ignore  # noqa: E402
     _mark_uploaded,
     _upload_marker_dir,
 )
+from config import resolve_device_id  # type: ignore  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -234,12 +235,17 @@ def _upload_one(
     folder_id: str,
     customer_id: str,
     jsonl_path: Path,
+    device_id: str = "",
     max_retry: int = 5,
 ) -> bool:
     """1つの jsonl を gzip 圧縮してアップロード. 成功時 True.
 
     アップロード経路:
-      folder_id (顧客ルート) / customer_id / YYYY-MM-DD / events_HHMMSS.jsonl.gz
+      folder_id (顧客ルート) / customer_id / YYYY-MM-DD / events_{device_id}_HHMMSS.jsonl.gz
+
+    ファイル名に device_id を含めることで、同一顧客の複数 PC が同じ日付フォルダに
+    アップロードしても (a) 同秒アップロードのファイル名衝突を避け、(b) どの PC 由来か
+    を一意に追跡できる（PC単位のデータ分離）。
     """
     if service is None:
         return False
@@ -262,7 +268,12 @@ def _upload_one(
         logger.exception("gdrive: failed to gzip %s", jsonl_path)
         return False
 
-    upload_name = f"events_{datetime.now().strftime('%H%M%S')}.jsonl.gz"
+    hhmmss = datetime.now().strftime('%H%M%S')
+    if device_id:
+        upload_name = f"events_{device_id}_{hhmmss}.jsonl.gz"
+    else:
+        # device_id 解決不能時の後方互換（従来の時刻のみ命名）
+        upload_name = f"events_{hhmmss}.jsonl.gz"
     media = MediaIoBaseUpload(
         io.BytesIO(gz_bytes),
         mimetype="application/gzip",
@@ -334,10 +345,18 @@ def upload_once_gdrive(
     if service is None:
         return False
 
+    # この PC の device_id を解決（ファイル名に含めて PC 単位で分離・追跡可能にする）。
+    try:
+        device_id = resolve_device_id()
+    except Exception:
+        logger.exception("gdrive: device_id 解決に失敗; 時刻のみの命名にフォールバック")
+        device_id = ""
+
     all_ok = True
     for p in pending:
         ok = _upload_one(
-            service, folder_id, customer_id, p, max_retry=max_retry,
+            service, folder_id, customer_id, p, device_id=device_id,
+            max_retry=max_retry,
         )
         if ok:
             # 1ファイルごとにマーカーを書く (途中失敗時の再送ロスを最小化)

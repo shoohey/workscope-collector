@@ -233,10 +233,16 @@ def test_upload_once_calls_drive_create_with_correct_args(isolated, monkeypatch)
     assert fakes["create_calls"][1]["body"]["parents"] == ["id-1"]
     # ファイル本体
     file_call = fakes["create_calls"][2]
-    assert file_call["body"]["name"].startswith("events_")
-    assert file_call["body"]["name"].endswith(".jsonl.gz")
+    fname = file_call["body"]["name"]
+    assert fname.startswith("events_")
+    assert fname.endswith(".jsonl.gz")
     assert file_call["body"]["parents"] == ["id-2"]
     assert file_call["media_body"] is not None
+    # PC単位分離: ファイル名に device_id が含まれ、events_{device_id}_{HHMMSS} 形式
+    import config  # type: ignore
+    dev = config.resolve_device_id()
+    assert dev
+    assert fname.startswith(f"events_{dev}_"), fname
 
 
 # =============================================================================

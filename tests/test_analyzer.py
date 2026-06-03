@@ -17,6 +17,8 @@ from analyzer.detector import (  # noqa: E402
     app_time_distribution,
     detect_repeated_patterns,
     detect_work_units,
+    detect_work_units_per_device,
+    group_events_by_device,
     load_events,
 )
 from analyzer.report_generator import render_html  # noqa: E402
@@ -84,6 +86,63 @@ def test_detect_work_units_splits_on_long_dwell() -> None:
 
 def test_detect_work_units_empty() -> None:
     assert detect_work_units([]) == []
+
+
+# ============================================================================
+# detector: PC単位の分離（複数PC運用時の混線防止）
+# ============================================================================
+
+def _ev_dev(seq: int, title: str, device_id: str, ts: str,
+            category: str = "industry_medical", dwell_ms: int = 1000) -> dict:
+    e = _ev(seq, title, category=category, dwell_ms=dwell_ms, ts=ts)
+    e["device_id"] = device_id
+    e["hostname"] = f"PC-{device_id}"
+    return e
+
+
+def test_group_events_by_device_separates_pcs() -> None:
+    events = [
+        _ev_dev(1, "A", "devA", "2026-05-05T10:00:00+09:00"),
+        _ev_dev(2, "B", "devB", "2026-05-05T10:00:01+09:00"),
+        _ev_dev(3, "C", "devA", "2026-05-05T10:00:02+09:00"),
+    ]
+    groups = group_events_by_device(events)
+    assert set(groups.keys()) == {"devA", "devB"}
+    assert [e["window"]["title"] for e in groups["devA"]] == ["A", "C"]
+    assert [e["window"]["title"] for e in groups["devB"]] == ["B"]
+
+
+def test_group_events_by_device_falls_back_to_session_id() -> None:
+    """device_id 無し（旧 v2 データ）でも session_id でグルーピングされる."""
+    e = _ev(1, "X")  # device_id を持たない v2 形式
+    assert "device_id" not in e
+    groups = group_events_by_device([e])
+    assert list(groups.keys()) == ["s1"]  # session_id にフォールバック
+
+
+def test_per_device_detection_avoids_cross_pc_false_transition() -> None:
+    """2台が同一カテゴリを操作しても、PCを跨いだ偽の継続業務にならない.
+
+    device で分離せず全件を1列に流すと「同一 app_category で連続」とみなされ
+    1業務単位に統合されてしまう。device 単位なら各PC 1業務単位（計2）になる。
+    """
+    events = [
+        _ev_dev(1, "画面A1", "devA", "2026-05-05T10:00:00+09:00"),
+        _ev_dev(2, "画面B1", "devB", "2026-05-05T10:00:00+09:00"),
+        _ev_dev(3, "画面A2", "devA", "2026-05-05T10:00:01+09:00"),
+        _ev_dev(4, "画面B2", "devB", "2026-05-05T10:00:01+09:00"),
+    ]
+    # 混ぜて1列で検出すると（誤った扱い）1業務単位に統合されてしまう
+    naive = detect_work_units(events)
+    assert len(naive) == 1  # 偽の統合（これが従来のバグ挙動）
+
+    # PC単位で検出すれば各PCが独立した業務単位になる
+    by_dev = detect_work_units_per_device(events)
+    assert set(by_dev.keys()) == {"devA", "devB"}
+    assert len(by_dev["devA"]) == 1
+    assert by_dev["devA"][0].event_count == 2
+    assert len(by_dev["devB"]) == 1
+    assert by_dev["devB"][0].event_count == 2
 
 
 # ============================================================================

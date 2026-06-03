@@ -13,6 +13,12 @@ psutil==5.9.8
 uiautomation==2.0.18
 
 # ---- 入力イベント取得（キー種別・マウスクリック） ----
+# input_events.py の実working実装は pynput（_start_pynput）のみ。
+# keyboard/mouse は歴史的経緯で残しているフォールバック枠だが、
+# keyboard バックエンド（_start_keyboard）は no-op スタブで実捕捉しないため、
+# key_typed / mouse_click を収集するには pynput が必須。
+# pyinstaller.spec も pynput.* を hiddenimports に指定済み。
+pynput==1.7.7
 keyboard==0.13.5
 mouse==0.7.1
 

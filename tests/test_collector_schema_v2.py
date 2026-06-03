@@ -82,8 +82,11 @@ def test_window_focus_event_has_schema_version_2(isolated_env, monkeypatch):
     event = collector.process(info)
 
     assert event is not None
-    assert event["schema_version"] == 2
+    assert event["schema_version"] == 3
     assert event["event_type"] == "window_focus"
+    # v3: PC単位分離のため device_id / hostname が全イベントに付与される
+    assert "device_id" in event and event["device_id"]
+    assert "hostname" in event
 
 
 def test_window_focus_event_has_app_category(isolated_env, monkeypatch):
@@ -123,9 +126,10 @@ def test_feed_key_event_writes_key_typed_event(isolated_env, monkeypatch):
     out = collector.feed_key_event(ev)
 
     assert out is not None
-    assert out["schema_version"] == 2
+    assert out["schema_version"] == 3
     assert out["event_type"] == "key_typed"
     assert out["input"]["text_keys_count"] == 8
+    assert "device_id" in out and out["device_id"]
 
 
 def test_feed_key_event_writes_key_combo_event(isolated_env, monkeypatch):
@@ -158,9 +162,10 @@ def test_feed_mouse_event_basic(isolated_env, monkeypatch):
     out = collector.feed_mouse_event(ev)
 
     assert out is not None
-    assert out["schema_version"] == 2
+    assert out["schema_version"] == 3
     assert out["event_type"] == "mouse_click"
     assert out["input"]["coords"] == [100, 200]
+    assert "device_id" in out and out["device_id"]
 
 
 def test_feed_mouse_event_with_ocr_resolves_target(isolated_env, monkeypatch):
@@ -262,6 +267,30 @@ def test_v01_compat_fields_still_present(isolated_env, monkeypatch):
     assert "dwell_ms_prev" in event
     assert "screenshot" in event
     assert "transition_from_app" in event
+    # v3 追加フィールド
+    assert "device_id" in event
+    assert "hostname" in event
+
+
+# ============================================================================
+# 8. device_id は端末固定（同一 APPDATA では再生成しても同じ値になる）
+# ============================================================================
+
+def test_device_id_is_stable_across_collectors(isolated_env, monkeypatch):
+    """同一 PC（同一 %APPDATA%）では Collector を作り直しても device_id が不変.
+
+    これが満たされないと「再起動を跨いだ PC 単位の分離」が成立しない。
+    """
+    collector_mod, c1 = _make_collector(stub_boxes=[])
+    _patch_capture(collector_mod, monkeypatch)
+    e1 = c1.process(_info(collector_mod, hwnd=1))
+
+    # 同じ APPDATA のまま2つ目の Collector を生成（再起動相当）
+    _, c2 = _make_collector(stub_boxes=[])
+    e2 = c2.process(_info(collector_mod, hwnd=2, title="別画面"))
+
+    assert e1["device_id"] == e2["device_id"]  # 端末固定
+    assert e1["session_id"] != e2["session_id"]  # セッションは起動毎に変わる
 
 
 if __name__ == "__main__":

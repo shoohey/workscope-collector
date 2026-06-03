@@ -59,6 +59,8 @@ from config import (
     load_config,
     logs_dir,
     pause_flag_file,
+    resolve_device_id,
+    resolve_hostname,
 )
 
 # v1.1-lite: 収集モード（"full" or "lite"）。ビルド時に _build_constants.py 経由で
@@ -145,7 +147,8 @@ except Exception:
     _HAS_INPUT_EVENTS = False
 
 
-SCHEMA_VERSION = 2
+# v3: 全イベントに device_id / hostname を付与（PC単位のデータ分離）。
+SCHEMA_VERSION = 3
 
 
 def _mask_text_with_default_profile(text: str) -> str:
@@ -496,6 +499,10 @@ class Collector:
         self._events = event_store or EventStore()
         self._shots = screenshot_store or ScreenshotStore(jpeg_quality=self._cfg.jpeg_quality)
         self._session_id = str(uuid.uuid4())
+        # device_id: 端末固定（再起動を跨いで安定）。複数PC運用時に解析側で
+        # データを PC 単位に分離・帰属するためのキー。hostname は補助ラベル。
+        self._device_id = resolve_device_id()
+        self._hostname = resolve_hostname()
         self._seq = 0
         self._lock = threading.Lock()
         self._focus = _FocusState()
@@ -514,12 +521,22 @@ class Collector:
         return self._session_id
 
     def start(self) -> None:
-        logger.info("Collector start session=%s", self._session_id)
+        logger.info(
+            "Collector start session=%s device=%s host=%s",
+            self._session_id, self._device_id, self._hostname,
+        )
         try:
             cleanup_old_data(self._cfg)
         except Exception:
             logger.exception("initial cleanup failed")
         self._watcher.start()
+        # SPEC v1.1-lite §3.1 で In-Scope の key_typed / mouse_click を収集するため、
+        # フォアグラウンド監視と併せて入力ロガーも起動する。ライブラリの無い環境
+        # （Mac 開発機等）では start_input_logger() が False を返す no-op で安全。
+        if self.start_input_logger():
+            logger.info("input logger active (key_typed/mouse_click 収集開始)")
+        else:
+            logger.info("input logger inactive (libs unavailable; window_focus のみ収集)")
 
     def run(self) -> None:
         """Collector をブロッキングで実行する（main.py のスレッドエントリポイント）.
@@ -536,6 +553,7 @@ class Collector:
     def stop(self) -> None:
         logger.info("Collector stop session=%s", self._session_id)
         self._stop.set()
+        self.stop_input_logger()
         self._watcher.stop()
         self._events.close()
 
@@ -898,6 +916,8 @@ class Collector:
         event: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "session_id": self._session_id,
+            "device_id": self._device_id,
+            "hostname": self._hostname,
             "event_seq": self._next_seq(),
             "ts": iso_ts(),
             "event_type": "window_focus",
@@ -952,6 +972,8 @@ class Collector:
         out: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "session_id": self._session_id,
+            "device_id": self._device_id,
+            "hostname": self._hostname,
             "event_seq": self._next_seq(),
             "ts": iso_ts(),
             "event_type": data.get("event_type", "key_typed"),
@@ -1004,6 +1026,8 @@ class Collector:
         out: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "session_id": self._session_id,
+            "device_id": self._device_id,
+            "hostname": self._hostname,
             "event_seq": self._next_seq(),
             "ts": iso_ts(),
             "event_type": "mouse_click",

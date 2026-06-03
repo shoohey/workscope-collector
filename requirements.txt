@@ -9,6 +9,11 @@ mss==9.0.1
 pywin32>=307,<312
 psutil==5.9.8
 
+# Input events (key_typed / mouse_click)
+# input_events.py の実working実装は pynput のみ（pyinstaller.spec も pynput.* を
+# hiddenimports 指定）。無いと key/mouse が一切収集されないため必須。
+pynput==1.7.7
+
 # Image processing
 Pillow==10.2.0
 numpy==1.26.4
